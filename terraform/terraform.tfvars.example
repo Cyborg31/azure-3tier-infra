@@ -1,0 +1,6 @@
+subscription_id = "YOUR_AZURE_SUBSCRIPTION_ID"
+tenant_id       = "YOUR_AZURE_TENANT_ID"
+client_id       = "YOUR_AZURE_CLIENT_ID"
+client_secret   = "YOUR_AZURE_CLIENT_SECRET"
+location        = "eastus"
+ssh_public_key  = "ssh-rsa AAAA... your_email@example.com"

@@ -1,0 +1,18 @@
+# Terraform sensitive files
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/.terraform/
+terraform/terraform.tfvars
+
+# Ansible sensitive files
+ansible/hosts.ini
+
+# SSH keys
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+
+# Editor & logs
+.vscode/
+*.log

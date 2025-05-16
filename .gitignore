@@ -1,8 +1,9 @@
-# Terraform sensitive files
+# Terraform sensitive files and directories
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/.terraform/
 terraform/terraform.tfvars
+terraform/*.tfplan
 
 # Ansible sensitive files
 ansible/hosts.ini
@@ -13,6 +14,6 @@ ansible/hosts.ini
 id_rsa
 id_rsa.pub
 
-# Editor & logs
+# Editor and log files
 .vscode/
 *.log

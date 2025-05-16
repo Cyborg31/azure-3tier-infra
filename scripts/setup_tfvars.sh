@@ -1,43 +1,80 @@
 #!/bin/bash
 
-echo "=== Azure Service Principal Setup ==="
-echo "Make sure you've run:"
-echo "  az login"
-echo "  az ad sp create-for-rbac --role=\"Contributor\" --scopes=\"/subscriptions/YOUR_SUBSCRIPTION_ID\""
-echo "Paste the output values below."
+echo "🚀 Let's generate your terraform.tfvars file"
 
-# Collect SP credentials
-read -p "Enter your Azure Subscription ID: " SUBSCRIPTION_ID
-read -p "Enter your Azure Tenant ID: " TENANT_ID
-read -p "Enter your Azure Client ID (appId): " CLIENT_ID
-read -s -p "Enter your Azure Client Secret (password): " CLIENT_SECRET
-echo ""
+# Prompt for general infrastructure info
+read -rp "Enter Azure location (default: eastus): " location
+location=${location:-eastus}
 
-# Ask for region with default fallback
-read -p "Enter Azure region [default: eastus]: " LOCATION
-LOCATION=${LOCATION:-eastus}
+read -rp "Enter Resource Group name (default: my3tier-rg): " rg
+rg=${rg:-my3tier-rg}
 
-# Validate SSH key
-if [[ ! -f ~/.ssh/id_rsa.pub ]]; then
-  echo "❌ SSH public key not found at ~/.ssh/id_rsa.pub"
-  echo "Run: ssh-keygen -t rsa -b 4096 -C \"your_email@example.com\""
+read -rp "Enter Virtual Network name (default: my3tier-vnet): " vnet
+vnet=${vnet:-my3tier-vnet}
+
+read -rp "Enter Web subnet prefix (default: 10.0.1.0/24): " web_subnet
+web_subnet=${web_subnet:-10.0.1.0/24}
+
+read -rp "Enter App subnet prefix (default: 10.0.2.0/24): " app_subnet
+app_subnet=${app_subnet:-10.0.2.0/24}
+
+read -rp "Enter DB subnet prefix (default: 10.0.3.0/24): " db_subnet
+db_subnet=${db_subnet:-10.0.3.0/24}
+
+read -rp "Enter VM size (default: Standard_B2ms): " vm_size
+vm_size=${vm_size:-Standard_B2ms}
+
+read -rp "Enter Web tier instance count (default: 2): " web_count
+web_count=${web_count:-2}
+
+read -rp "Enter App tier instance count (default: 2): " app_count
+app_count=${app_count:-2}
+
+# Prompt for Azure Service Principal credentials
+read -rp "Enter Azure Subscription ID: " subscription_id
+read -rp "Enter Azure Tenant ID: " tenant_id
+read -rp "Enter Azure Client ID: " client_id
+read -rsp "Enter Azure Client Secret: " client_secret
+echo
+
+# Read SSH key
+SSH_KEY_PATH="$HOME/.ssh/id_rsa.pub"
+if [ ! -f "$SSH_KEY_PATH" ]; then
+  echo "❌ SSH public key not found at $SSH_KEY_PATH"
   exit 1
 fi
+ssh_key=$(cat "$SSH_KEY_PATH")
 
-SSH_PUB_KEY=$(<~/.ssh/id_rsa.pub)
-
-# Write tfvars file
 TFVARS_PATH="terraform/terraform.tfvars"
 mkdir -p terraform
 
-cat > "$TFVARS_PATH" <<EOT
-subscription_id = "$SUBSCRIPTION_ID"
-tenant_id       = "$TENANT_ID"
-client_id       = "$CLIENT_ID"
-client_secret   = "$CLIENT_SECRET"
-location        = "$LOCATION"
-ssh_public_key  = "$SSH_PUB_KEY"
-EOT
+# Write to terraform.tfvars
+cat > "$TFVARS_PATH" <<EOF
+location            = "$location"
+resource_group_name = "$rg"
+vnet_name           = "$vnet"
+address_space       = ["10.0.0.0/16"]
 
-echo "✅ terraform.tfvars created successfully at $TFVARS_PATH"
-echo "🌍 Region set to: $LOCATION"
+web_subnet_name     = "web-subnet"
+web_subnet_prefix   = "$web_subnet"
+
+app_subnet_name     = "app-subnet"
+app_subnet_prefix   = "$app_subnet"
+
+db_subnet_name      = "db-subnet"
+db_subnet_prefix    = "$db_subnet"
+
+vm_size             = "$vm_size"
+
+web_instance_count  = $web_count
+app_instance_count  = $app_count
+
+ssh_public_key      = "$ssh_key"
+
+subscription_id     = "$subscription_id"
+tenant_id           = "$tenant_id"
+client_id           = "$client_id"
+client_secret       = "$client_secret"
+EOF
+
+echo "✅ terraform.tfvars created successfully."

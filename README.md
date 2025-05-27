@@ -28,10 +28,13 @@ cd azure-3tier-infra
 ssh-keygen -t rsa -b 4096 -C "your_email@example.com"  # if not done
 
 make all  # provisions infra and deploys app
+```
 
 🧹 Cleanup
 
+```bash
 make clean
+```
 
 📁 Structure
 

@@ -1,0 +1,23 @@
+- name: Deploy MySQL DB
+  hosts: db
+  become: yes
+  tasks:
+    - name: Install MySQL
+      apt:
+        name: mysql-server
+        state: present
+        update_cache: yes
+
+    - name: Start MySQL
+      service:
+        name: mysql
+        state: started
+        enabled: true
+
+    - name: Create database appdb
+      mysql_db:
+        name: appdb
+        state: present
+
+    - name: Import DB schema
+      command: mysql appdb < ../../app/db/db_schema.sql

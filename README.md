@@ -38,15 +38,13 @@ make clean
 
 📁 Structure
 
-    terraform/ – Infra as code
-
-    ansible/ – Playbooks and inventory
-
-    Makefile – Full automation
-
-    README.md – Docs
+- terraform/ – Infra as code
+- ansible/ – Playbooks and inventory
+- Makefile – Full automation
+- README.md – Docs
 
 👨‍💻 Author
 
 Sudip Giri | 📧 sudeepgiri31@gmail.com | 📍 Toronto
+
 Created as a secure cloud infrastructure automation project for learning.

@@ -1,34 +1,49 @@
-# Azure 3-Tier Application infrastructure Deployment with Terraform 
+# 🚀 Azure 3-Tier Infra Deployment (Terraform + Ansible)
 
-This project automates the secure deployment of a 3-tier infrastructure on Microsoft Azure using **Terraform**. It uses SSH key for secure access, and avoids hardcoded secrets via Azure Key Vault.
+This project automates the secure deployment of a 3-tier infrastructure on Azure using **Terraform**, **Ansible**, and a **Makefile**.
 
-- Provision Azure infrastructure using Terraform
-- Uses Azure Key Vault to secure credentials
+## ✅ Features
+
+- Infrastructure with Terraform
+- Secrets via Azure Key Vault (no hardcoding)
+- Ansible deployment with dynamic inventory
+- SSH via Bastion → Jumpbox → Internal VMs
+- One command deployment with `make all`
 - Modular, scalable, and cloud-ready
 
 ## 🔧 Prerequisites
 
-- Azure CLI
-- Terraform
-- Bash shell (via WSL/Ubuntu on Windows)
+- Azure CLI  
+- Terraform  
+- Ansible  
+- Bash shell (WSL/Ubuntu)  
+- SSH key (`~/.ssh/id_rsa`)
 
-## 🛠️ Setup
+## 🛠️ Quick Setup
 
-### 1. Clone the repository
-
+```bash
 git clone https://github.com/Cyborg31/azure-3tier-infra.git
 cd azure-3tier-infra
 
-2. Generate SSH key (if not done)
+ssh-keygen -t rsa -b 4096 -C "your_email@example.com"  # if not done
 
-ssh-keygen -t rsa -b 4096 -C "your_email@example.com"
+make all  # provisions infra and deploys app
 
-⚙️ Run terraform Script
+🧹 Cleanup
 
-terraform init
-terraform plan
-terraform apply
+make clean
 
+📁 Structure
 
+    terraform/ – Infra as code
 
+    ansible/ – Playbooks and inventory
+
+    Makefile – Full automation
+
+    README.md – Docs
+
+👨‍💻 Author
+
+Sudip Giri | 📧 sudeepgiri31@gmail.com | 📍 Toronto
 Created as a secure cloud infrastructure automation project for learning.

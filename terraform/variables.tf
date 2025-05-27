@@ -100,6 +100,9 @@ variable "key_vault_name" {
 }
 
 variable "tags" {
-  description = "A map of tags to assign to resources"
-  type        = map(string)
+  type    = map(string)
+  default = {
+    environment = "dev"
+    project     = "3-tier-app"
+  }
 }

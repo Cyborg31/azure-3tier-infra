@@ -1,0 +1,29 @@
+- name: Deploy Backend
+  hosts: backend
+  become: yes
+  tasks:
+    - name: Install Node.js and npm
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - nodejs
+        - npm
+
+    - name: Copy backend app
+      copy:
+        src: ../../app/backend/
+        dest: /opt/backend/
+        mode: 0755
+
+    - name: Install dependencies
+      command: npm install
+      args:
+        chdir: /opt/backend/
+
+    - name: Start backend app with DB_HOST environment variable
+      shell: |
+        DB_HOST={{ hostvars['db1']['ansible_host'] }} nohup node server.js > backend.log 2>&1 &
+      args:
+        chdir: /opt/backend/

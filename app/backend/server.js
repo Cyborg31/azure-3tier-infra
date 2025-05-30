@@ -1,33 +1,36 @@
 const express = require('express');
 const mysql = require('mysql');
 const app = express();
-const port = 3000;
 
-const db = mysql.createConnection({
-  host: process.env.DB_HOST || "127.0.0.1",
+const dbHost = process.env.DB_HOST || 'localhost';
+
+const connection = mysql.createConnection({
+  host: dbHost,
   user: 'root',
-  password: '',
-  database: 'appdb'
+  password: '', // Adjust if you set MySQL root password
+  database: 'appdb',
 });
 
-db.connect(err => {
+connection.connect(err => {
   if (err) {
     console.error('DB connection error:', err);
-    process.exit(1);
+  } else {
+    console.log('Connected to MySQL DB');
   }
-  console.log('Connected to DB');
 });
 
-app.get('/api/hello', (req, res) => {
-  db.query('SELECT message FROM messages LIMIT 1', (err, results) => {
+app.use(express.static('../frontend')); // For testing serve frontend too (optional)
+
+app.get('/api/db-status', (req, res) => {
+  connection.query('SELECT 1', (err, results) => {
     if (err) {
-      res.status(500).send({error: err.message});
-      return;
+      return res.json({ status: 'DB connection failed' });
     }
-    res.json({ message: results[0].message });
+    res.json({ status: 'DB connected successfully' });
   });
 });
 
-app.listen(port, () => {
-  console.log(`Backend listening at http://localhost:${port}`);
+const PORT = 3000;
+app.listen(PORT, () => {
+  console.log(`Backend API listening on port ${PORT}`);
 });

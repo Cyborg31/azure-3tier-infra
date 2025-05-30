@@ -1,5 +1,6 @@
-- name: Deploy Frontend
-  hosts: frontend
+---
+- name: Deploy Frontend (Nginx)
+  hosts: web
   become: yes
   tasks:
     - name: Install Nginx
@@ -7,14 +8,18 @@
         name: nginx
         state: present
         update_cache: yes
+      environment:
+        DEBIAN_FRONTEND: noninteractive
 
-    - name: Copy frontend files
+    - name: Copy frontend files to web root
       copy:
-        src: ../../app/frontend/
+        src: frontend/
         dest: /var/www/html/
-        mode: 0755
+        mode: '0755'
+        owner: www-data
+        group: www-data
 
-    - name: Restart Nginx
+    - name: Reload Nginx
       service:
         name: nginx
-        state: restarted
+        state: reloaded

@@ -9,7 +9,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "web" {
 
   admin_ssh_key {
     username   = var.admin_username
-    public_key = file(var.ssh_public_key_path)
+    public_key = azurerm_key_vault_secret.ssh_public_key.value
   }
 
   source_image_reference {
@@ -29,16 +29,16 @@ resource "azurerm_linux_virtual_machine_scale_set" "web" {
     primary = true
 
     ip_configuration {
-      name      = "internal"
-      primary   = true
-      subnet_id = azurerm_subnet.web.id
+      name                                    = "internal"
+      primary                                 = true
+      subnet_id                              = azurerm_subnet.web.id
       load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.web.id]
     }
   }
 }
 
 resource "azurerm_linux_virtual_machine_scale_set" "app" {
- name                = "${var.resource_group_name}-app-vmss"
+  name                = "${var.resource_group_name}-app-vmss"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   sku                 = var.vm_size
@@ -48,7 +48,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "app" {
 
   admin_ssh_key {
     username   = var.admin_username
-    public_key = file(var.ssh_public_key_path)
+    public_key = azurerm_key_vault_secret.ssh_public_key.value
   }
 
   source_image_reference {
@@ -68,38 +68,11 @@ resource "azurerm_linux_virtual_machine_scale_set" "app" {
     primary = true
 
     ip_configuration {
-      name      = "internal"
-      primary   = true
-      subnet_id = azurerm_subnet.app.id
+      name                                    = "internal"
+      primary                                 = true
+      subnet_id                              = azurerm_subnet.app.id
       load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.app.id]
     }
-  }
-}
-
-resource "azurerm_linux_virtual_machine" "db" {
-  name                = "${var.resource_group_name}-db-vm"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  size                = var.vm_size
-  admin_username      = var.admin_username
-
-  admin_ssh_key {
-    username   = var.admin_username
-    public_key = file(var.ssh_public_key_path)
-  }
-
-  network_interface_ids = [azurerm_network_interface.db.id]
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
   }
 }
 
@@ -113,4 +86,34 @@ resource "azurerm_network_interface" "db" {
     subnet_id                     = azurerm_subnet.db.id
     private_ip_address_allocation = "Dynamic"
   }
+}
+
+resource "azurerm_linux_virtual_machine" "db" {
+  name                = "${var.resource_group_name}-db-vm"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  size                = "Standard_B2s"
+  admin_username      = var.admin_username
+  network_interface_ids = [azurerm_network_interface.db.id]
+
+  admin_ssh_key {
+    username   = var.admin_username
+    public_key = azurerm_key_vault_secret.ssh_public_key.value
+  }
+
+  disable_password_authentication = true
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+
+  tags = var.tags
 }

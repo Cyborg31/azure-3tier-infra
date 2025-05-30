@@ -1,10 +1,27 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>3-Tier App Frontend</title>
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <h1>Welcome to the Frontend</h1>
-  <p><a href="/api/hello">Call Backend API</a></p>
+  <h1>3-Tier App Deployment Status</h1>
+  <p>This is the web tier frontend.</p>
+  <p>Status: <strong>All systems operational.</strong></p>
+
+  <h2>Database Connection Test</h2>
+  <p id="db-status">Checking database connection...</p>
+
+  <script>
+    fetch('/api/db-status')
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('db-status').innerText = data.status;
+      })
+      .catch(() => {
+        document.getElementById('db-status').innerText = 'Error connecting to backend';
+      });
+  </script>
 </body>
 </html>

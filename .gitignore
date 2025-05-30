@@ -5,7 +5,9 @@ terraform/.terraform/
 terraform/*.tfplan
 
 # Ansible sensitive files
-ansible/hosts.ini
+ansible/inventory/hosts.ini
+ansible/ansible-lint
+ansible/files
 
 # SSH keys
 *.pem

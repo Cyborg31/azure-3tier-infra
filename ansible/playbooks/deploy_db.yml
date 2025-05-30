@@ -1,23 +1,63 @@
-- name: Deploy MySQL DB
+---
+- name: Deploy MySQL Database
   hosts: db
   become: yes
-  tasks:
-    - name: Install MySQL
-      apt:
-        name: mysql-server
-        state: present
-        update_cache: yes
+  vars:
+    mysql_admin_user: appadmin
+    mysql_admin_password: strongpassword123  # Replace with a secure password
+    mysql_db_name: appdb
 
-    - name: Start MySQL
+  tasks:
+    - name: Install MySQL Server
+      shell: |
+        sudo DEBIAN_FRONTEND=noninteractive apt-get update && \
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server
+      args:
+        executable: /bin/bash
+      register: mysql_install_output
+      async: 600
+      poll: 5
+
+    - name: Show MySQL install output
+      debug:
+        var: mysql_install_output.stdout_lines
+
+    - name: Ensure MySQL service is running
       service:
         name: mysql
         state: started
-        enabled: true
+        enabled: yes
 
-    - name: Create database appdb
-      mysql_db:
-        name: appdb
+    - name: Install Python MySQL client library for Ansible
+      apt:
+        name: python3-pymysql
         state: present
+        update_cache: yes
 
-    - name: Import DB schema
-      command: mysql appdb < ../../app/db/db_schema.sql
+    - name: Create MySQL admin user for Ansible
+      mysql_user:
+        name: "{{ mysql_admin_user }}"
+        password: "{{ mysql_admin_password }}"
+        host: "localhost"
+        priv: "*.*:ALL,GRANT"
+        state: present
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        login_user: root
+
+    - name: Create application database '{{ mysql_db_name }}'
+      mysql_db:
+        name: "{{ mysql_db_name }}"
+        state: present
+        login_user: root
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    - name: Copy DB schema SQL file
+      copy:
+        src: ../../app/db/db_schema.sql
+        dest: /tmp/db_schema.sql
+        mode: '0644'
+
+    - name: Import DB schema into '{{ mysql_db_name }}'
+      shell: mysql "{{ mysql_db_name }}" < /tmp/db_schema.sql
+      args:
+        executable: /bin/bash

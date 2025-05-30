@@ -48,6 +48,18 @@ variable "db_subnet_prefix" {
   type        = string
 }
 
+variable "jumpbox_subnet_prefix" {
+  description = "CIDR prefix for the jumpbox subnet"
+  type        = string
+  default     = "10.0.20.0/24"
+}
+
+variable "bastion_subnet_prefix" {
+  description = "CIDR prefix for the Azure Bastion subnet"
+  type        = string
+  default     = "10.0.30.0/27"
+}
+
 variable "vm_size" {
   description = "Size of the VM instances"
   type        = string
@@ -81,17 +93,19 @@ variable "admin_username" {
 variable "ssh_public_key_secret_name" {
   description = "Name of the Key Vault secret for SSH public key"
   type        = string
+  default     = "ssh-public-key"
 }
 
 variable "ssh_public_key_path" {
-  description = "Path to the SSH public key file"
+  description = "Path to the SSH public key file (used once to upload to Key Vault)"
   type        = string
+  default     = "~/.ssh/id_rsa.pub"
 }
 
 variable "allowed_ssh_ip" {
   description = "IP address or CIDR allowed to connect via SSH"
   type        = string
-  default     = "*"  # Allow any IP by default (adjust for security)
+  default     = "*"  # Change for production security
 }
 
 variable "key_vault_name" {

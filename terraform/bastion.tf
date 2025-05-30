@@ -23,7 +23,15 @@ resource "azurerm_bastion_host" "main" {
   tags = var.tags
 }
 
-# Jumpbox network interface
+resource "azurerm_public_ip" "jumpbox" {
+  name                = "jumpbox-public-ip"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = var.tags
+}
+
 resource "azurerm_network_interface" "jumpbox" {
   name                = "jumpbox-nic"
   location            = azurerm_resource_group.main.location
@@ -33,10 +41,10 @@ resource "azurerm_network_interface" "jumpbox" {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.jumpbox.id
     private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.jumpbox.id
   }
 }
 
-# Jumpbox Linux VM
 resource "azurerm_linux_virtual_machine" "jumpbox" {
   name                = "jumpbox-vm"
   resource_group_name = azurerm_resource_group.main.name
@@ -46,7 +54,7 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
 
   admin_ssh_key {
     username   = var.admin_username
-    public_key = file(var.ssh_public_key_path)
+    public_key = azurerm_key_vault_secret.ssh_public_key.value
   }
 
   network_interface_ids = [azurerm_network_interface.jumpbox.id]

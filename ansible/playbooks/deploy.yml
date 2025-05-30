@@ -1,6 +1,0 @@
----
-# This is the main deployment playbook that includes all stages of the 3-tier app deployment
-
-- import_playbook: deploy_db.yml
-- import_playbook: deploy_backend.yml
-- import_playbook: deploy_frontend.yml

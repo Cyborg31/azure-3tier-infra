@@ -1,0 +1,7 @@
+exclude_paths:
+  - app/
+  - terraform/
+warn_list:
+  - experimental
+  - no-changed-when
+  - name[missing]

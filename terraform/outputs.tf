@@ -3,16 +3,6 @@ output "admin_username" {
   description = "Admin username for all VMs and VM Scale Sets"
 }
 
-output "jumpbox_private_ip" {
-  description = "Private IP address of the Jumpbox VM"
-  value       = azurerm_network_interface.jumpbox.private_ip_address
-}
-
-output "jumpbox_public_ip" {
-  description = "Public IP address of the Jumpbox VM"
-  value = azurerm_public_ip.jumpbox.ip_address
-}
-
 output "db_private_ip" {
   description = "Private IP address of the Database VM"
   value       = azurerm_network_interface.db.private_ip_address
@@ -33,19 +23,21 @@ output "bastion_public_ip" {
   value       = azurerm_public_ip.bastion.ip_address
 }
 
+output "web_vmss_instance_ids" {
+  value = azurerm_linux_virtual_machine_scale_set.web.id
+}
+
+output "app_vmss_instance_ids" {
+  value = azurerm_linux_virtual_machine_scale_set.app.id
+}
+
+output "db_vm_id" {
+  value = azurerm_linux_virtual_machine.db.id
+}
+
 output "key_vault_name" {
   description = "Name of the Azure Key Vault resource"
   value       = azurerm_key_vault.main.name
-}
-
-output "ssh_command_jumpbox" {
-  description = "SSH command to connect to the Jumpbox VM"
-  value       = "ssh ${var.admin_username}@${azurerm_network_interface.jumpbox.private_ip_address}"
-}
-
-output "ssh_command_web" {
-  description = "SSH command to connect to the Web tier public IP"
-  value       = "ssh ${var.admin_username}@${azurerm_public_ip.web.ip_address}"
 }
 
 output "subnet_ids" {
@@ -54,7 +46,23 @@ output "subnet_ids" {
     web     = azurerm_subnet.web.id
     app     = azurerm_subnet.app.id
     db      = azurerm_subnet.db.id
-    jumpbox = azurerm_subnet.jumpbox.id
     bastion = azurerm_subnet.bastion.id
   }
+}
+
+# Outputs for VM and VMSS names to use with az ssh
+
+output "web_vmss_name" {
+  description = "Name of the Web VM Scale Set"
+  value       = azurerm_linux_virtual_machine_scale_set.web.name
+}
+
+output "app_vmss_name" {
+  description = "Name of the App VM Scale Set"
+  value       = azurerm_linux_virtual_machine_scale_set.app.name
+}
+
+output "db_vm_name" {
+  description = "Name of the Database VM"
+  value       = azurerm_linux_virtual_machine.db.name
 }

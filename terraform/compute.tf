@@ -31,8 +31,8 @@ resource "azurerm_linux_virtual_machine_scale_set" "web" {
     ip_configuration {
       name                                    = "internal"
       primary                                 = true
-      subnet_id                              = azurerm_subnet.web.id
-      load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.web.id]
+      subnet_id                               = azurerm_subnet.web.id
+      load_balancer_backend_address_pool_ids  = [azurerm_lb_backend_address_pool.web.id]
     }
   }
 }
@@ -70,8 +70,8 @@ resource "azurerm_linux_virtual_machine_scale_set" "app" {
     ip_configuration {
       name                                    = "internal"
       primary                                 = true
-      subnet_id                              = azurerm_subnet.app.id
-      load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.app.id]
+      subnet_id                               = azurerm_subnet.app.id
+      load_balancer_backend_address_pool_ids  = [azurerm_lb_backend_address_pool.app.id]
     }
   }
 }

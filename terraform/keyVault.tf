@@ -1,4 +1,3 @@
-# Key Vault with explicit access policies
 resource "azurerm_key_vault" "main" {
   name                        = var.key_vault_name
   location                    = azurerm_resource_group.main.location
@@ -6,7 +5,7 @@ resource "azurerm_key_vault" "main" {
   tenant_id                   = data.azurerm_client_config.current.tenant_id
   sku_name                    = "standard"
   enabled_for_disk_encryption = true
-  purge_protection_enabled    = false  # Change to true in production
+  purge_protection_enabled    = var.purge_protection_enabled
   tags                        = var.tags
 
   access_policy {

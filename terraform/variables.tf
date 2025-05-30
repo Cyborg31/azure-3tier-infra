@@ -16,6 +16,7 @@ variable "vnet_name" {
 variable "address_space" {
   description = "Address space for the virtual network"
   type        = list(string)
+  default     = ["10.0.0.0/16"]
 }
 
 variable "web_subnet_name" {
@@ -26,6 +27,7 @@ variable "web_subnet_name" {
 variable "web_subnet_prefix" {
   description = "CIDR prefix for the web subnet"
   type        = string
+  default     = "10.0.1.0/24"
 }
 
 variable "app_subnet_name" {
@@ -36,6 +38,7 @@ variable "app_subnet_name" {
 variable "app_subnet_prefix" {
   description = "CIDR prefix for the application subnet"
   type        = string
+  default     = "10.0.2.0/24"
 }
 
 variable "db_subnet_name" {
@@ -46,18 +49,13 @@ variable "db_subnet_name" {
 variable "db_subnet_prefix" {
   description = "CIDR prefix for the database subnet"
   type        = string
-}
-
-variable "jumpbox_subnet_prefix" {
-  description = "CIDR prefix for the jumpbox subnet"
-  type        = string
-  default     = "10.0.20.0/24"
+  default     = "10.0.3.0/24"
 }
 
 variable "bastion_subnet_prefix" {
   description = "CIDR prefix for the Azure Bastion subnet"
   type        = string
-  default     = "10.0.30.0/27"
+  default     = "10.0.5.0/26"
 }
 
 variable "vm_size" {
@@ -105,12 +103,18 @@ variable "ssh_public_key_path" {
 variable "allowed_ssh_ip" {
   description = "IP address or CIDR allowed to connect via SSH"
   type        = string
-  default     = "*"  # Change for production security
+  default     = "*"  #
 }
 
 variable "key_vault_name" {
   description = "Name of the Azure Key Vault"
   type        = string
+}
+
+variable "purge_protection_enabled" {
+  description = "Enable purge protection for Key Vault"
+  type        = bool
+  default     = false
 }
 
 variable "tags" {

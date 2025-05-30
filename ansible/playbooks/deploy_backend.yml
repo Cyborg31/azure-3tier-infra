@@ -9,20 +9,20 @@
   tasks:
     - name: Ensure curl and required packages are installed
       apt:
-        name: "{{ item }}"
+        name:
+          - curl
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
         state: present
         update_cache: yes
-      loop:
-        - curl
-        - apt-transport-https
-        - ca-certificates
-        - gnupg
 
     - name: Add Node.js APT repository
-      shell: |
-        curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
+      shell: curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
       args:
         executable: /bin/bash
+      register: node_setup
+      changed_when: "'Node.js' in node_setup.stdout or node_setup.rc == 0"
 
     - name: Install Node.js and npm
       apt:

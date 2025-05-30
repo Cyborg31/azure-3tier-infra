@@ -33,19 +33,14 @@ resource "azurerm_subnet" "db" {
   address_prefixes     = [var.db_subnet_prefix]
 }
 
-resource "azurerm_subnet" "jumpbox" {
-  name                 = "jumpbox-subnet"
-  resource_group_name  = azurerm_resource_group.main.name
-  virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = [var.jumpbox_subnet_prefix]
-}
-
 resource "azurerm_subnet" "bastion" {
   name                 = "AzureBastionSubnet"
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.bastion_subnet_prefix]
 }
+
+# NSGs with SSH from Bastion subnet allowed
 
 resource "azurerm_network_security_group" "web" {
   name                = "web-nsg"
@@ -61,19 +56,19 @@ resource "azurerm_network_security_group" "web" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "80"
-    source_address_prefixes    = ["0.0.0.0/0"]
+    source_address_prefix      = "0.0.0.0/0"
     destination_address_prefix = "*"
   }
 
   security_rule {
-    name                       = "AllowSSHFromJumpbox"
+    name                       = "AllowSSHFromBastion"
     priority                   = 110
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "22"
-    source_address_prefixes    = [var.jumpbox_subnet_prefix]
+    source_address_prefix      = var.bastion_subnet_prefix
     destination_address_prefix = "*"
   }
 }
@@ -92,19 +87,19 @@ resource "azurerm_network_security_group" "app" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "8080"
-    source_address_prefixes    = [var.web_subnet_prefix]
+    source_address_prefix      = var.web_subnet_prefix
     destination_address_prefix = "*"
   }
 
   security_rule {
-    name                       = "AllowSSHFromJumpbox"
+    name                       = "AllowSSHFromBastion"
     priority                   = 110
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "22"
-    source_address_prefixes    = [var.jumpbox_subnet_prefix]
+    source_address_prefix      = var.bastion_subnet_prefix
     destination_address_prefix = "*"
   }
 }
@@ -123,43 +118,25 @@ resource "azurerm_network_security_group" "db" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "3306"
-    source_address_prefixes    = [var.app_subnet_prefix]
+    source_address_prefix      = var.app_subnet_prefix
     destination_address_prefix = "*"
   }
 
   security_rule {
-    name                       = "AllowSSHFromJumpbox"
+    name                       = "AllowSSHFromBastion"
     priority                   = 110
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "22"
-    source_address_prefixes    = [var.jumpbox_subnet_prefix]
-    destination_address_prefix = "*"
-  }
-}
-
-resource "azurerm_network_security_group" "jumpbox" {
-  name                = "jumpbox-nsg"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  tags                = var.tags
-
-  security_rule {
-    name                       = "AllowSSHFromLocal"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_address_prefix      = var.allowed_ssh_ip # Your local public IP or CIDR block
-    source_port_range          = "*"
-    destination_port_range     = "22"
+    source_address_prefix      = var.bastion_subnet_prefix
     destination_address_prefix = "*"
   }
 }
 
 # NSG Associations
+
 resource "azurerm_subnet_network_security_group_association" "web" {
   subnet_id                 = azurerm_subnet.web.id
   network_security_group_id = azurerm_network_security_group.web.id
@@ -173,9 +150,4 @@ resource "azurerm_subnet_network_security_group_association" "app" {
 resource "azurerm_subnet_network_security_group_association" "db" {
   subnet_id                 = azurerm_subnet.db.id
   network_security_group_id = azurerm_network_security_group.db.id
-}
-
-resource "azurerm_subnet_network_security_group_association" "jumpbox" {
-  subnet_id                 = azurerm_subnet.jumpbox.id
-  network_security_group_id = azurerm_network_security_group.jumpbox.id
 }

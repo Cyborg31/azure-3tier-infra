@@ -16,6 +16,9 @@ app_subnet_prefix   = "10.0.2.0/24"
 db_subnet_name      = "db-subnet"
 db_subnet_prefix    = "10.0.3.0/24"
 
+# Bastion Configuration
+bastion_subnet_prefix = "10.0.5.0/26"  # Must be at least /26 for Azure Bastion
+
 # Compute Configuration
 vm_size             = "Standard_B1ls"
 web_instance_count  = 2
@@ -29,8 +32,11 @@ internal_lb_name    = "app-int-lb"
 admin_username               = "azureuser"
 ssh_public_key_secret_name   = "ssh-public-key"
 ssh_public_key_path          = "~/.ssh/id_rsa.pub"
-allowed_ssh_ip               = "*"  # Replace with your IP or CIDR
+allowed_ssh_ip               = "*"  # REPLACE WITH YOUR ACTUAL IP
 key_vault_name               = "my3tier-rg-kv"
+
+# Key Vault Protection
+purge_protection_enabled     = false
 
 # Resource Tags
 tags = {

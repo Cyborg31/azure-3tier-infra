@@ -2,6 +2,7 @@
 - name: Deploy Frontend (Nginx)
   hosts: web
   become: yes
+
   tasks:
     - name: Install Nginx
       apt:
@@ -19,7 +20,7 @@
         owner: www-data
         group: www-data
 
-    - name: Reload Nginx
+    - name: Reload Nginx to apply changes
       service:
         name: nginx
         state: reloaded

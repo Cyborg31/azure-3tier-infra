@@ -4,25 +4,17 @@
   become: yes
   vars:
     mysql_admin_user: appadmin
-    mysql_admin_password: strongpassword123  # Replace with a secure password
+    mysql_admin_password: strongpassword123  # Replace with a secure password before use
     mysql_db_name: appdb
 
   tasks:
     - name: Install MySQL Server
-      shell: |
-        sudo DEBIAN_FRONTEND=noninteractive apt-get update && \
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server
-      args:
-        executable: /bin/bash
-      register: mysql_install_output
-      async: 600
-      poll: 5
+      apt:
+        name: mysql-server
+        state: present
+        update_cache: yes
 
-    - name: Show MySQL install output
-      debug:
-        var: mysql_install_output.stdout_lines
-
-    - name: Ensure MySQL service is running
+    - name: Ensure MySQL service is running and enabled
       service:
         name: mysql
         state: started
@@ -38,7 +30,7 @@
       mysql_user:
         name: "{{ mysql_admin_user }}"
         password: "{{ mysql_admin_password }}"
-        host: "localhost"
+        host: localhost
         priv: "*.*:ALL,GRANT"
         state: present
         login_unix_socket: /var/run/mysqld/mysqld.sock
@@ -61,3 +53,10 @@
       shell: mysql "{{ mysql_db_name }}" < /tmp/db_schema.sql
       args:
         executable: /bin/bash
+      register: import_result
+      changed_when: "'ERROR' not in import_result.stderr"
+
+    - name: Clean up DB schema file
+      file:
+        path: /tmp/db_schema.sql
+        state: absent

@@ -1,0 +1,5 @@
+mysql_admin_password: "admin"
+mysql_app_password: "admin"
+mysql_db_name: "3-tier-db"
+mysql_app_user: "appuser"
+# Add other sensitive variables here as needed, e.g API keys

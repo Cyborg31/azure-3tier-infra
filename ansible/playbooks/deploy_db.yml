@@ -3,33 +3,45 @@
   hosts: db
   become: yes
   vars:
+    # IMPORTANT: Do NOT hardcode passwords here. Use Ansible Vault.
+    # These variables will be loaded from a vaulted file, e.g., group_vars/all/vault.yml
     mysql_admin_user: appadmin
-    mysql_admin_password: strongpassword123  # Replace with a secure password before use
     mysql_db_name: appdb
+    mysql_app_user: nodejs_app_user # New user for the application
 
   tasks:
     - name: Install MySQL Server
-      apt:
+      ansible.builtin.apt:
         name: mysql-server
         state: present
         update_cache: yes
 
     - name: Ensure MySQL service is running and enabled
-      service:
+      ansible.builtin.service:
         name: mysql
         state: started
         enabled: yes
 
     - name: Install Python MySQL client library for Ansible
-      apt:
+      ansible.builtin.apt:
         name: python3-pymysql
         state: present
         update_cache: yes
 
-    - name: Create MySQL admin user for Ansible
-      mysql_user:
+    # Ensure MySQL binds to all network interfaces for remote connections
+    # This is crucial for the App tier to connect to the DB.
+    - name: Configure MySQL to bind to 0.0.0.0 (all interfaces)
+      ansible.builtin.lineinfile:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf # Common path for Ubuntu
+        regexp: '^bind-address'
+        line: 'bind-address = 0.0.0.0'
+        state: present
+      notify: Restart mysql
+
+    - name: Create MySQL admin user for Ansible (localhost access)
+      community.mysql.mysql_user:
         name: "{{ mysql_admin_user }}"
-        password: "{{ mysql_admin_password }}"
+        password: "{{ mysql_admin_password }}" # Loaded from Ansible Vault
         host: localhost
         priv: "*.*:ALL,GRANT"
         state: present
@@ -37,26 +49,45 @@
         login_user: root
 
     - name: Create application database '{{ mysql_db_name }}'
-      mysql_db:
+      community.mysql.mysql_db:
         name: "{{ mysql_db_name }}"
         state: present
         login_user: root
         login_unix_socket: /var/run/mysqld/mysqld.sock
 
+    # Create dedicated user for the Node.js application (remote access)
+    - name: Create application user '{{ mysql_app_user }}' for remote access
+      community.mysql.mysql_user:
+        name: "{{ mysql_app_user }}"
+        password: "{{ mysql_app_password }}" # Loaded from Ansible Vault
+        host: "%" # Allows connections from any host (within your VNet, secured by NSGs)
+        # More securely, you could specify your app subnet prefix here like:
+        # host: "{{ app_subnet_prefix | split('/') | first }}"
+        priv: "{{ mysql_db_name }}.*:SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,REFERENCES" # Limited privileges
+        state: present
+        login_user: root
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
     - name: Copy DB schema SQL file
-      copy:
+      ansible.builtin.copy:
         src: ../../app/db/db_schema.sql
         dest: /tmp/db_schema.sql
         mode: '0644'
 
     - name: Import DB schema into '{{ mysql_db_name }}'
-      shell: mysql "{{ mysql_db_name }}" < /tmp/db_schema.sql
+      ansible.builtin.shell: mysql "{{ mysql_db_name }}" < /tmp/db_schema.sql
       args:
         executable: /bin/bash
       register: import_result
-      changed_when: "'ERROR' not in import_result.stderr"
+      changed_when: "'ERROR' not in import_result.stderr" # Basic check for errors
 
     - name: Clean up DB schema file
-      file:
+      ansible.builtin.file:
         path: /tmp/db_schema.sql
         state: absent
+
+  handlers:
+    - name: Restart mysql
+      ansible.builtin.service:
+        name: mysql
+        state: restarted

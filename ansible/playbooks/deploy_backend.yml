@@ -5,10 +5,17 @@
   vars:
     backend_dir: /opt/backend
     node_version: "16"
+    app_user: nodejs_app # New variable for the non-privileged app user
+
+    # Database connection details (from deploy_db.yml variables and Ansible Vault)
+    db_host: "{{ hostvars['db1']['ansible_host'] }}"
+    db_name: "{{ mysql_db_name | default('appdb') }}" # Use default in case variable is not explicitly passed
+    db_user: "{{ mysql_app_user | default('nodejs_app_user') }}" # Use default in case variable is not explicitly passed
+    # db_password will be loaded from Ansible Vault (no default here, it must be present)
 
   tasks:
     - name: Ensure curl and required packages are installed
-      apt:
+      ansible.builtin.apt:
         name:
           - curl
           - apt-transport-https
@@ -18,39 +25,52 @@
         update_cache: yes
 
     - name: Add Node.js APT repository
-      shell: curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
+      ansible.builtin.shell: curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
       args:
         executable: /bin/bash
       register: node_setup
       changed_when: "'Node.js' in node_setup.stdout or node_setup.rc == 0"
 
     - name: Install Node.js and npm
-      apt:
+      ansible.builtin.apt:
         name: nodejs
         state: present
         update_cache: yes
 
+    # Create a dedicated non-privileged user for the application
+    - name: Create non-privileged user for Node.js app
+      ansible.builtin.user:
+        name: "{{ app_user }}"
+        state: present
+        system: yes # Create as a system user
+        shell: /sbin/nologin # No login shell
+        create_home: no # No home directory needed for this use case
+
     - name: Create backend directory
-      file:
+      ansible.builtin.file:
         path: "{{ backend_dir }}"
         state: directory
         mode: '0755'
+        owner: "{{ app_user }}" # Set owner to the new app user
+        group: "{{ app_user }}" # Set group to the new app user
 
     - name: Copy backend app files
-      copy:
+      ansible.builtin.copy:
         src: ../../app/backend/
         dest: "{{ backend_dir }}/"
         mode: '0755'
-        owner: root
-        group: root
+        owner: "{{ app_user }}" # Set owner to the new app user
+        group: "{{ app_user }}" # Set group to the new app user
 
     - name: Install npm dependencies
-      command: npm ci
+      ansible.builtin.command: npm ci
       args:
         chdir: "{{ backend_dir }}"
+      become: yes # npm ci might need root privileges for global packages or permissions
+      become_user: "{{ app_user }}" # Run npm ci as the app user
 
     - name: Create systemd service for backend
-      copy:
+      ansible.builtin.copy:
         dest: /etc/systemd/system/backend.service
         content: |
           [Unit]
@@ -58,11 +78,15 @@
           After=network.target
 
           [Service]
-          Environment=DB_HOST={{ hostvars['db1']['ansible_host'] }}
+          Environment=DB_HOST={{ db_host }}
+          Environment=DB_USER={{ db_user }}
+          Environment=DB_PASSWORD={{ mysql_app_password }} # From Ansible Vault
+          Environment=DB_NAME={{ db_name }}
           WorkingDirectory={{ backend_dir }}
           ExecStart=/usr/bin/node server.js
           Restart=always
-          User=root
+          User={{ app_user }} # Run as the non-privileged app user
+          Group={{ app_user }} # Set the group for the service
 
           [Install]
           WantedBy=multi-user.target
@@ -70,7 +94,7 @@
 
   handlers:
     - name: Restart backend service
-      systemd:
+      ansible.builtin.systemd:
         name: backend
         state: restarted
         enabled: yes

@@ -1,9 +1,11 @@
+# Create Resource Group
 resource "azurerm_resource_group" "main" {
   name     = var.resource_group_name
   location = var.location
   tags     = var.tags
 }
 
+# Create Virtual Network
 resource "azurerm_virtual_network" "main" {
   name                = var.vnet_name
   address_space       = var.address_space
@@ -12,6 +14,7 @@ resource "azurerm_virtual_network" "main" {
   tags                = var.tags
 }
 
+# Create Subnets
 resource "azurerm_subnet" "web" {
   name                 = var.web_subnet_name
   resource_group_name  = azurerm_resource_group.main.name
@@ -33,6 +36,7 @@ resource "azurerm_subnet" "db" {
   address_prefixes     = [var.db_subnet_prefix]
 }
 
+# Azure Bastion requires this exact subnet name
 resource "azurerm_subnet" "bastion" {
   name                 = "AzureBastionSubnet"
   resource_group_name  = azurerm_resource_group.main.name
@@ -40,7 +44,7 @@ resource "azurerm_subnet" "bastion" {
   address_prefixes     = [var.bastion_subnet_prefix]
 }
 
-# NSGs with SSH from Bastion subnet allowed
+# Network Security Groups with relevant rules
 
 resource "azurerm_network_security_group" "web" {
   name                = "web-nsg"
@@ -56,7 +60,7 @@ resource "azurerm_network_security_group" "web" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "80"
-    source_address_prefix      = "0.0.0.0/0"
+    source_address_prefix      = "Internet"
     destination_address_prefix = "*"
   }
 
@@ -135,7 +139,7 @@ resource "azurerm_network_security_group" "db" {
   }
 }
 
-# NSG Associations
+# Associate NSGs to subnets
 
 resource "azurerm_subnet_network_security_group_association" "web" {
   subnet_id                 = azurerm_subnet.web.id

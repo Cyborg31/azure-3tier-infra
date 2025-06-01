@@ -5,7 +5,7 @@
 
   tasks:
     - name: Install Nginx
-      apt:
+      ansible.builtin.apt:
         name: nginx
         state: present
         update_cache: yes
@@ -13,14 +13,42 @@
         DEBIAN_FRONTEND: noninteractive
 
     - name: Copy frontend files to web root
-      copy:
-        src: frontend/
+      ansible.builtin.copy:
+        src: ../../files/frontend/ # Corrected source path
         dest: /var/www/html/
         mode: '0755'
         owner: www-data
         group: www-data
 
-    - name: Reload Nginx to apply changes
-      service:
+    # Deploy custom Nginx configuration for the frontend
+    # This assumes you will create a file at ansible/files/nginx/frontend.conf
+    - name: Copy Nginx frontend configuration
+      ansible.builtin.copy:
+        src: ../../files/nginx/frontend.conf # Assuming this path for your custom Nginx config
+        dest: /etc/nginx/sites-available/frontend.conf
+        mode: '0644'
+        owner: root
+        group: root
+      notify: Restart nginx
+
+    - name: Enable Nginx frontend site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/frontend.conf
+        dest: /etc/nginx/sites-enabled/frontend.conf
+        state: link
+        force: yes # Overwrite if link already exists
+      notify: Restart nginx
+
+    # Remove default Nginx site if it exists to avoid conflicts
+    - name: Disable default Nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Restart nginx
+
+  handlers:
+    - name: Restart nginx
+      ansible.builtin.service:
         name: nginx
-        state: reloaded
+        state: restarted
+        enabled: yes # Ensure Nginx starts on boot

@@ -1,3 +1,4 @@
+# Public IP for the Web Load Balancer
 resource "azurerm_public_ip" "web" {
   name                = "${var.resource_group_name}-web-ip"
   location            = azurerm_resource_group.main.location
@@ -7,6 +8,7 @@ resource "azurerm_public_ip" "web" {
   tags                = var.tags
 }
 
+# Public Load Balancer for Web Tier
 resource "azurerm_lb" "web" {
   name                = var.public_lb_name
   location            = azurerm_resource_group.main.location
@@ -18,13 +20,18 @@ resource "azurerm_lb" "web" {
     name                 = "PublicIPAddress"
     public_ip_address_id = azurerm_public_ip.web.id
   }
+  depends_on = [
+    azurerm_public_ip.web
+  ]
 }
 
+# Backend Address Pool for Web Load Balancer
 resource "azurerm_lb_backend_address_pool" "web" {
   loadbalancer_id = azurerm_lb.web.id
   name            = "WebBackendPool"
 }
 
+# Health Probe for Web Load Balancer (HTTP on port 80)
 resource "azurerm_lb_probe" "web" {
   loadbalancer_id = azurerm_lb.web.id
   name            = "HTTP-Probe"
@@ -33,6 +40,7 @@ resource "azurerm_lb_probe" "web" {
   request_path    = "/"
 }
 
+# Load Balancer Rule for Web Traffic (port 80)
 resource "azurerm_lb_rule" "web" {
   loadbalancer_id                = azurerm_lb.web.id
   name                           = "HTTP"
@@ -44,6 +52,7 @@ resource "azurerm_lb_rule" "web" {
   probe_id                       = azurerm_lb_probe.web.id
 }
 
+# Internal Load Balancer for App Tier
 resource "azurerm_lb" "app" {
   name                = var.internal_lb_name
   location            = azurerm_resource_group.main.location
@@ -58,11 +67,13 @@ resource "azurerm_lb" "app" {
   }
 }
 
+# Backend Address Pool for App Load Balancer
 resource "azurerm_lb_backend_address_pool" "app" {
   loadbalancer_id = azurerm_lb.app.id
   name            = "AppBackendPool"
 }
 
+# Health Probe for App Load Balancer (TCP on port 8080)
 resource "azurerm_lb_probe" "app" {
   loadbalancer_id = azurerm_lb.app.id
   name            = "TCP-Probe"
@@ -70,6 +81,7 @@ resource "azurerm_lb_probe" "app" {
   port            = 8080
 }
 
+# Load Balancer Rule for App Traffic (port 8080)
 resource "azurerm_lb_rule" "app" {
   loadbalancer_id                = azurerm_lb.app.id
   name                           = "AppPort"

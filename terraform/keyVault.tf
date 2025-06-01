@@ -1,3 +1,4 @@
+# Azure Key Vault
 resource "azurerm_key_vault" "main" {
   name                        = var.key_vault_name
   location                    = azurerm_resource_group.main.location
@@ -13,13 +14,21 @@ resource "azurerm_key_vault" "main" {
     object_id = data.azurerm_client_config.current.object_id
 
     secret_permissions = [
-      "Get", "List", "Set", "Delete", "Recover", "Backup", "Restore", "Purge"
+      "Get",
+      "List",
+      "Set",
+      "Delete",
     ]
   }
 }
 
+# Upload SSH public key to Key Vault as a secret
 resource "azurerm_key_vault_secret" "ssh_public_key" {
   name         = var.ssh_public_key_secret_name
-  value        = trimspace(file(var.ssh_public_key_path))
+  value        = file(var.ssh_public_key_path)
   key_vault_id = azurerm_key_vault.main.id
+
+  depends_on = [
+    azurerm_key_vault.main
+  ]
 }

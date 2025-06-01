@@ -1,5 +1,4 @@
 # Values for variables
-
 location            = "eastus"
 resource_group_name = "my3tier-rg"
 
@@ -15,17 +14,18 @@ app_subnet_prefix = "10.0.2.0/24"
 db_subnet_name   = "db-subnet"
 db_subnet_prefix = "10.0.3.0/24"
 
+bastion_subnet_name   = "bastion-subnet"
 bastion_subnet_prefix = "10.0.5.0/26" # Azure Bastion requires /26 or larger subnet
 
-vm_size            = "Standard_B2s" # Changed from B1ls to B2s for a more reasonable starting point
-web_instance_count = 2 # This is now the 'default' for auto-scaling
-app_instance_count = 2 # This is now the 'default' for auto-scaling
+vm_size            = "Standard_B1s"
+web_instance_count = 1 # This is the default for auto-scaling
+app_instance_count = 1 # This is the default for auto-scaling
 
 # Auto-scaling parameters
-web_min_instances          = 2
-web_max_instances          = 5
-app_min_instances          = 2
-app_max_instances          = 5
+web_min_instances               = 1
+web_max_instances               = 2
+app_min_instances               = 1
+app_max_instances               = 2
 scale_out_cpu_threshold_percent = 75
 scale_in_cpu_threshold_percent  = 25
 scale_out_cooldown_minutes      = 5
@@ -37,7 +37,6 @@ internal_lb_name = "app-int-lb"
 admin_username             = "azureuser"
 ssh_public_key_secret_name = "ssh-public-key"
 ssh_public_key_path        = "~/.ssh/id_rsa.pub"
-allowed_ssh_ip             = "*" # Change to your IP for better security
 key_vault_name             = "my3tier-rg-kv"
 
 purge_protection_enabled = false
@@ -46,3 +45,6 @@ tags = {
   environment = "dev"
   project     = "3tier-terraform"
 }
+
+# Your current public IP for Bastion SSH access
+my_public_ip = "*"

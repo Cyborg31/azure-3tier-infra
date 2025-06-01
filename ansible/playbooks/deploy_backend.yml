@@ -1,6 +1,6 @@
 ---
 - name: Deploy Backend (Node.js)
-  hosts: app
+  hosts: azure_tier_app
   become: yes
   vars:
     backend_dir: /opt/backend

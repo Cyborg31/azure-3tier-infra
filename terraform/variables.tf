@@ -52,10 +52,20 @@ variable "db_subnet_prefix" {
   default     = "10.0.3.0/24"
 }
 
+variable "bastion_subnet_name" {
+  description = "Name of the Database subnet"
+  type        = string
+}
+
 variable "bastion_subnet_prefix" {
   description = "CIDR prefix for the Azure Bastion subnet (must be /26 or larger)"
   type        = string
   default     = "10.0.5.0/26"
+}
+
+variable "my_public_ip" {
+  description = "Your local machine's public IP address for SSH access to Bastion"
+  type        = string
 }
 
 variable "vm_size" {
@@ -63,7 +73,6 @@ variable "vm_size" {
   type        = string
 }
 
-# Original instance counts will now become the default for auto-scaling profiles
 variable "web_instance_count" {
   description = "Default number of VM instances for the Web Tier VM Scale Set (when no scaling event is active)"
   type        = number
@@ -74,32 +83,30 @@ variable "app_instance_count" {
   type        = number
 }
 
-#####################################################################
-# New variables for Auto-Scaling Configuration
-#####################################################################
+# Variables for Auto-Scaling Configuration
 
 variable "web_min_instances" {
   description = "Minimum number of instances for the Web VM Scale Set"
   type        = number
-  default     = 2 # Example: Ensure at least 2 instances are always running
+  default     = 2 # Ensure at least 2 instances are always running
 }
 
 variable "web_max_instances" {
   description = "Maximum number of instances for the Web VM Scale Set"
   type        = number
-  default     = 5 # Example: Scale up to a maximum of 5 instances
+  default     = 5 # Scale up to a maximum of 5 instances
 }
 
 variable "app_min_instances" {
   description = "Minimum number of instances for the App VM Scale Set"
   type        = number
-  default     = 2 # Example: Ensure at least 2 instances are always running
+  default     = 2 # Ensure at least 2 instances are always running
 }
 
 variable "app_max_instances" {
   description = "Maximum number of instances for the App VM Scale Set"
   type        = number
-  default     = 5 # Example: Scale up to a maximum of 5 instances
+  default     = 5 # Scale up to a maximum of 5 instances
 }
 
 variable "scale_out_cpu_threshold_percent" {
@@ -126,8 +133,6 @@ variable "scale_in_cooldown_minutes" {
   default     = 5 # Wait 5 minutes before evaluating scale-in again
 }
 
-#####################################################################
-
 variable "public_lb_name" {
   description = "Name of the Public Load Balancer for Web Tier"
   type        = string
@@ -153,12 +158,6 @@ variable "ssh_public_key_path" {
   description = "Path to the SSH public key file (used to upload to Key Vault)"
   type        = string
   default     = "~/.ssh/id_rsa.pub"
-}
-
-variable "allowed_ssh_ip" {
-  description = "IP or CIDR allowed to SSH into VMs; set * for open access (not recommended in production)"
-  type        = string
-  default     = "*"
 }
 
 variable "key_vault_name" {

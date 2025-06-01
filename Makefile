@@ -7,12 +7,14 @@ APP_DIR           = app
 INVENTORY_DIR     = $(ANSIBLE_DIR)/inventory
 INVENTORY_FILE    = $(INVENTORY_DIR)/hosts.ini
 SSH_KEY_FILE      = ~/.ssh/id_rsa
+# Resolve SSH_KEY_FILE to an absolute path for robust shell scripting
+SSH_KEY_FILE_ABS := $(shell realpath $(SSH_KEY_FILE))
 
 # PHONY TARGETS
-.PHONY: all terraform generate-inventory prepare-frontend prepare-backend deploy clean
+.PHONY: all terraform generate-inventory prepare-frontend prepare-backend deploy clean pre-deploy
 
 # FULL PIPELINE
-all: terraform generate-inventory prepare-frontend prepare-backend deploy
+all: terraform generate-inventory prepare-frontend prepare-backend pre-deploy deploy
 
 # STEP 1: Terraform Infrastructure
 terraform:
@@ -24,29 +26,9 @@ terraform:
 generate-inventory:
 	@echo "🔄 Generating dynamic Ansible inventory for Bastion access..."
 	@mkdir -p $(INVENTORY_DIR)
-
-	@bash -c '\
-	set -euo pipefail; \
-	admin=$$(cd $(TERRAFORM_DIR) && terraform output -raw admin_username); \
-	db_ip=$$(cd $(TERRAFORM_DIR) && terraform output -raw db_private_ip); \
-	web_lb_ip=$$(cd $(TERRAFORM_DIR) && terraform output -raw web_lb_public_ip); \
-	app_lb_ip=$$(cd $(TERRAFORM_DIR) && terraform output -raw app_lb_private_ip); \
-	bastion_ip=$$(cd $(TERRAFORM_DIR) && terraform output -raw bastion_public_ip); \
-	\
-	echo "[bastion]" > $(INVENTORY_FILE); \
-	echo "bastion ansible_host=$$bastion_ip ansible_user=$$admin ansible_ssh_private_key_file=$(SSH_KEY_FILE)" >> $(INVENTORY_FILE); \
-	\
-	echo "[db]" >> $(INVENTORY_FILE); \
-	echo "db1 ansible_host=$$db_ip ansible_user=$$admin ansible_ssh_private_key_file=$(SSH_KEY_FILE) ansible_ssh_common_args='\''-o ProxyCommand=\"ssh -W %h:%p -q -i $(SSH_KEY_FILE) $$admin@$$bastion_ip\"'\''" >> $(INVENTORY_FILE); \
-	\
-	echo "[web]" >> $(INVENTORY_FILE); \
-	echo "web_lb ansible_host=$$web_lb_ip ansible_user=$$admin ansible_ssh_private_key_file=$(SSH_KEY_FILE)" >> $(INVENTORY_FILE); \
-	\
-	echo "[app]" >> $(INVENTORY_FILE); \
-	echo "app1 ansible_host=$$app_lb_ip ansible_user=$$admin ansible_ssh_private_key_file=$(SSH_KEY_FILE) ansible_ssh_common_args='\''-o ProxyCommand=\"ssh -W %h:%p -q -i $(SSH_KEY_FILE) $$admin@$$bastion_ip\"'\''" >> $(INVENTORY_FILE); \
-	\
-	echo "✅ Inventory generated at $(INVENTORY_FILE)"; \
-	'
+	# IMPORTANT: The entire bash -c command is now on a SINGLE PHYSICAL LINE.
+	# This bypasses make's multi-line processing and avoids "Unterminated quoted string" issues.
+	@bash -c 'set -euo pipefail; admin=$$(cd $(TERRAFORM_DIR) && terraform output -raw admin_username); db_ip=$$(cd $(TERRAFORM_DIR) && terraform output -raw db_private_ip); bastion_ip=$$(cd $(TERRAFORM_DIR) && terraform output -raw bastion_public_ip); tf_resource_group_name=$$(cd $(TERRAFORM_DIR) && terraform output -raw resource_group_name); tf_app_lb_private_ip=$$(cd $(TERRAFORM_DIR) && terraform output -raw app_lb_private_ip); printf "%s\n" "[bastion]" > "$(INVENTORY_FILE)"; printf "bastion ansible_host=%s ansible_user=%s ansible_ssh_private_key_file=%s\n" "$$bastion_ip" "$$admin" "$(SSH_KEY_FILE_ABS)" >> "$(INVENTORY_FILE)"; printf "%s\n" "[db]" >> "$(INVENTORY_FILE)"; printf "db1 ansible_host=%s ansible_user=%s ansible_ssh_private_key_file=%s ansible_ssh_common_args='\''-o ProxyCommand=\"ssh -W %%h:%%p -q -i %s %s@%s\"'\''\n" "$$db_ip" "$$admin" "$(SSH_KEY_FILE_ABS)" "$(SSH_KEY_FILE_ABS)" "$$admin" "$$bastion_ip" >> "$(INVENTORY_FILE)"; printf "%s\n" "✅ Inventory generated at $(INVENTORY_FILE)"; printf "%s\n" "RESOURCE_GROUP_NAME=$$tf_resource_group_name" > "$(ANSIBLE_DIR)/ansible_vars.sh"; printf "%s\n" "APP_LB_PRIVATE_IP=$$tf_app_lb_private_ip" >> "$(ANSIBLE_DIR)/ansible_vars.sh"; printf "%s\n" "BASTION_PUBLIC_IP=$$bastion_ip" >> "$(ANSIBLE_DIR)/ansible_vars.sh"; printf "%s\n" "DB_PRIVATE_IP=$$db_ip" >> "$(ANSIBLE_DIR)/ansible_vars.sh"'
 
 # STEP 3: Prepare App Files
 prepare-frontend:
@@ -61,13 +43,26 @@ prepare-backend:
 	mkdir -p $(ANSIBLE_DIR)/files/backend
 	cp -r $(APP_DIR)/backend/* $(ANSIBLE_DIR)/files/backend/
 
+# Dynamically remove known_hosts entries for newly provisioned IPs
+pre-deploy:
+	@echo "Cleaning known_hosts for newly provisioned Azure VM IPs..."
+	. $(ANSIBLE_DIR)/ansible_vars.sh && \
+	ssh-keygen -f $(HOME)/.ssh/known_hosts -R "$${BASTION_PUBLIC_IP}" || true; \
+	ssh-keygen -f $(HOME)/.ssh/known_hosts -R "$${DB_PRIVATE_IP}" || true
+
 # STEP 4: Ansible Deployment
 deploy:
 	@echo "🚀 Running Ansible deployment through Bastion..."
-	ansible-playbook -i $(INVENTORY_FILE) $(ANSIBLE_DIR)/playbooks/deploy_all.yml
+	# Source the generated vars to pass resource_group_name and app_lb_private_ip
+	. $(ANSIBLE_DIR)/ansible_vars.sh && \
+	ansible-playbook -i $(INVENTORY_FILE) \
+	                 -i $(ANSIBLE_DIR)/azure_rm.yml \
+	                 --extra-vars "resource_group_name=$${RESOURCE_GROUP_NAME} app_lb_private_ip=$${APP_LB_PRIVATE_IP}" \
+	                 $(ANSIBLE_DIR)/playbooks/deploy_all.yml \
+	                 --ask-vault-pass
 
 # CLEANUP
 clean:
 	@echo "🧹 Cleaning up inventory and destroying infrastructure..."
-	rm -f $(INVENTORY_FILE)
+	rm -f $(INVENTORY_FILE) $(ANSIBLE_DIR)/ansible_vars.sh
 	cd $(TERRAFORM_DIR) && terraform destroy -auto-approve

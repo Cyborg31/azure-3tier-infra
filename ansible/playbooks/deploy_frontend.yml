@@ -1,6 +1,6 @@
 ---
 - name: Deploy Frontend (Nginx)
-  hosts: web
+  hosts: azure_tier_web
   become: yes
 
   tasks:
@@ -14,17 +14,17 @@
 
     - name: Copy frontend files to web root
       ansible.builtin.copy:
-        src: ../../files/frontend/ # Corrected source path
+        src: ../../files/frontend/
         dest: /var/www/html/
         mode: '0755'
         owner: www-data
         group: www-data
 
     # Deploy custom Nginx configuration for the frontend
-    # This assumes you will create a file at ansible/files/nginx/frontend.conf
-    - name: Copy Nginx frontend configuration
-      ansible.builtin.copy:
-        src: ../../files/nginx/frontend.conf # Assuming this path for your custom Nginx config
+    # This will use the app_lb_private_ip variable
+    - name: Configure Nginx for frontend (SPA and API proxy)
+      ansible.builtin.template:
+        src: ../../files/nginx/frontend.conf.j2 
         dest: /etc/nginx/sites-available/frontend.conf
         mode: '0644'
         owner: root
@@ -39,7 +39,6 @@
         force: yes # Overwrite if link already exists
       notify: Restart nginx
 
-    # Remove default Nginx site if it exists to avoid conflicts
     - name: Disable default Nginx site
       ansible.builtin.file:
         path: /etc/nginx/sites-enabled/default
@@ -51,4 +50,4 @@
       ansible.builtin.service:
         name: nginx
         state: restarted
-        enabled: yes # Ensure Nginx starts on boot
+        enabled: yes

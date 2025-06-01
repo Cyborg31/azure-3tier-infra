@@ -1,87 +1,63 @@
-# Admin username used across VMs and VM Scale Sets
-output "admin_username" {
-  description = "Admin username for all VMs and VM Scale Sets"
-  value       = var.admin_username
-  sensitive   = true
+# Public IP address of the Load Balancer
+output "web_public_ip" {
+  description = "The public IP address of the Web tier Load Balancer."
+  value       = azurerm_public_ip.web.ip_address
+}
+
+# Public IP address of the Bastion VM (now a VM, not Bastion Host service)
+output "bastion_public_ip" {
+  description = "Public IP address of the Azure Bastion VM."
+  value       = azurerm_public_ip.bastion_vm_ip.ip_address
+}
+
+# Private IP address of the Internal Load Balancer for App Tier
+output "app_lb_private_ip" {
+  description = "The private IP address of the Internal Load Balancer for the App tier."
+  value       = azurerm_lb.app.frontend_ip_configuration[0].private_ip_address
 }
 
 # Private IP address of the Database VM
 output "db_private_ip" {
-  description = "Private IP address of the Database VM"
+  description = "Private IP address of the Database VM."
   value       = azurerm_network_interface.db.private_ip_address
 }
 
-# Public IP address of the Web Load Balancer
-output "web_lb_public_ip" {
-  description = "Public IP address of the Web Load Balancer"
-  value       = azurerm_public_ip.web.ip_address
+# Resource Group Name
+output "resource_group_name" {
+  description = "Name of the resource group."
+  value       = azurerm_resource_group.main.name
 }
 
-# Fully qualified domain name of the Web Load Balancer
-output "web_lb_fqdn" {
-  description = "FQDN of the Web Load Balancer"
-  value       = azurerm_public_ip.web.fqdn
-}
-
-# Private IP address of the App Load Balancer (internal)
-output "app_lb_private_ip" {
-  description = "Private IP address of the App Load Balancer"
-  value       = azurerm_lb.app.frontend_ip_configuration[0].private_ip_address
-}
-
-# Public IP address of the Azure Bastion Host
-output "bastion_public_ip" {
-  description = "Public IP address of the Azure Bastion Host"
-  value       = azurerm_public_ip.bastion.ip_address
-}
-
-# IDs of VM Scale Sets
-output "web_vmss_instance_ids" {
-  description = "Resource ID of the Web VM Scale Set"
-  value       = azurerm_linux_virtual_machine_scale_set.web.id
-}
-
-output "app_vmss_instance_ids" {
-  description = "Resource ID of the App VM Scale Set"
-  value       = azurerm_linux_virtual_machine_scale_set.app.id
-}
-
-# Resource ID of the Database VM
-output "db_vm_id" {
-  description = "Resource ID of the Database VM"
-  value       = azurerm_linux_virtual_machine.db.id
-}
-
-# Azure Key Vault resource name
-output "key_vault_name" {
-  description = "Name of the Azure Key Vault resource"
-  value       = azurerm_key_vault.main.name
-  sensitive   = true
+# Virtual Network Name
+output "vnet_name" {
+  description = "Name of the Virtual Network."
+  value       = azurerm_virtual_network.main.name
 }
 
 # Subnet IDs
-output "subnet_ids" {
-  description = "IDs of all subnets in a map"
-  value = {
-    web     = azurerm_subnet.web.id
-    app     = azurerm_subnet.app.id
-    db      = azurerm_subnet.db.id
-    bastion = azurerm_subnet.bastion.id
-  }
+output "web_subnet_id" {
+  description = "ID of the Web Subnet."
+  value       = azurerm_subnet.web.id
 }
 
-# Names of VMs and VMSS resources
-output "web_vmss_name" {
-  description = "Name of the Web VM Scale Set"
-  value       = azurerm_linux_virtual_machine_scale_set.web.name
+output "app_subnet_id" {
+  description = "ID of the App Subnet."
+  value       = azurerm_subnet.app.id
 }
 
-output "app_vmss_name" {
-  description = "Name of the App VM Scale Set"
-  value       = azurerm_linux_virtual_machine_scale_set.app.name
+output "db_subnet_id" {
+  description = "ID of the DB Subnet."
+  value       = azurerm_subnet.db.id
 }
 
-output "db_vm_name" {
-  description = "Name of the Database VM"
-  value       = azurerm_linux_virtual_machine.db.name
+output "bastion_subnet_id" {
+  description = "ID of the Bastion Subnet."
+  value       = azurerm_subnet.bastion.id
 }
+
+# Admin username for the VMs
+output "admin_username" {
+  description = "The admin username for the Linux VMs."
+  value       = var.admin_username
+}
+

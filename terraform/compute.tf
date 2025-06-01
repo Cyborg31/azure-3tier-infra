@@ -1,12 +1,77 @@
+# Public IP for the Bastion VM
+resource "azurerm_public_ip" "bastion_vm_ip" {
+  name                = "bastion-vm-public-ip"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = var.tags
+}
+
+# Network Interface for the Bastion VM
+resource "azurerm_network_interface" "bastion_vm_nic" {
+  name                = "bastion-vm-nic"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  tags                = var.tags
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.bastion.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.bastion_vm_ip.id
+  }
+}
+
+# Associate Bastion NSG to the Bastion NIC
+resource "azurerm_network_interface_security_group_association" "bastion_nic_nsg_association" {
+  network_interface_id      = azurerm_network_interface.bastion_vm_nic.id
+  network_security_group_id = azurerm_network_security_group.bastion.id
+}
+
+# Bastion Virtual Machine (used as jump host for Ansible)
+resource "azurerm_linux_virtual_machine" "bastion" {
+  name                            = "bastion-vm"
+  resource_group_name             = azurerm_resource_group.main.name
+  location                        = azurerm_resource_group.main.location
+  size                            = "Standard_B1s"
+  admin_username                  = var.admin_username
+  disable_password_authentication = true
+  network_interface_ids           = [azurerm_network_interface.bastion_vm_nic.id]
+  tags                            = var.tags
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-focal"
+    sku       = "20_04-lts"
+    version   = "latest"
+  }
+
+  # SSH key for authentication (using Key Vault secret)
+  admin_ssh_key {
+    username   = var.admin_username
+    public_key = azurerm_key_vault_secret.ssh_public_key.value
+  }
+}
+
 # VM Scale Set for Web Tier
 resource "azurerm_linux_virtual_machine_scale_set" "web" {
   name                = "${var.resource_group_name}-web-vmss"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   sku                 = var.vm_size
-  instances           = var.web_instance_count # This variable now serves as the 'default_capacity'
+  instances           = var.web_instance_count # This variable serves as the 'default_capacity'
   admin_username      = var.admin_username
-  tags                = var.tags
+  tags = {
+    environment = var.tags.environment
+    project     = var.tags.project
+    tier        = "web"
+  }
 
   admin_ssh_key {
     username   = var.admin_username
@@ -52,12 +117,12 @@ resource "azurerm_monitor_autoscale_setting" "web" {
   tags                = var.tags
 
   profile {
-    name = "default" # Standard profile name
+    name = "default"
 
     capacity {
-      minimum = var.web_min_instances    # Minimum instances
-      maximum = var.web_max_instances    # Maximum instances
-      default = var.web_instance_count   # Default (initial) instances
+      minimum = var.web_min_instances  # Minimum instances
+      maximum = var.web_max_instances  # Maximum instances
+      default = var.web_instance_count # Default (initial) instances
     }
 
     # Scale out rule
@@ -65,18 +130,18 @@ resource "azurerm_monitor_autoscale_setting" "web" {
       metric_trigger {
         metric_name        = "Percentage CPU"
         metric_resource_id = azurerm_linux_virtual_machine_scale_set.web.id
-        time_grain         = "PT1M"         # Aggregation time grain (1 minute)
+        time_grain         = "PT1M" # Aggregation time grain (1 minute)
         statistic          = "Average"
-        time_window        = "PT5M"         # Lookback time window (5 minutes)
+        time_window        = "PT5M" # Lookback time window (5 minutes)
         operator           = "GreaterThanOrEqual"
         threshold          = var.scale_out_cpu_threshold_percent # CPU threshold for scaling out
         time_aggregation   = "Average"
       }
       scale_action {
         type      = "ChangeCount"
-        value     = 1 # Increase instance count by 1
+        value     = 1                                      # Increase instance count by 1
         cooldown  = "PT${var.scale_out_cooldown_minutes}M" # Cooldown period
-        direction = "Increase" # Specifies the direction of scaling
+        direction = "Increase"                             # Specifies the direction of scaling
       }
     }
 
@@ -94,9 +159,9 @@ resource "azurerm_monitor_autoscale_setting" "web" {
       }
       scale_action {
         type      = "ChangeCount"
-        value     = 1 # Decrease instance count by 1
+        value     = 1                                     # Decrease instance count by 1
         cooldown  = "PT${var.scale_in_cooldown_minutes}M" # Cooldown period
-        direction = "Decrease" # Specifies the direction of scaling
+        direction = "Decrease"                            # Specifies the direction of scaling
       }
     }
   }
@@ -109,9 +174,13 @@ resource "azurerm_linux_virtual_machine_scale_set" "app" {
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   sku                 = var.vm_size
-  instances           = var.app_instance_count # This variable now serves as the 'default_capacity'
+  instances           = var.app_instance_count # This variable serves as the 'default_capacity'
   admin_username      = var.admin_username
-  tags                = var.tags
+  tags = {
+    environment = var.tags.environment
+    project     = var.tags.project
+    tier        = "app"
+  }
 
   admin_ssh_key {
     username   = var.admin_username

@@ -38,7 +38,12 @@ resource "azurerm_linux_virtual_machine" "bastion" {
   admin_username                  = var.admin_username
   disable_password_authentication = true
   network_interface_ids           = [azurerm_network_interface.bastion_vm_nic.id]
-  tags                            = var.tags
+  tags = {
+    environment = var.tags.environment
+    project     = var.tags.project
+    tier        = "bastion"
+}
+
 
   os_disk {
     caching              = "ReadWrite"
@@ -70,8 +75,9 @@ resource "azurerm_linux_virtual_machine_scale_set" "web" {
   tags = {
     environment = var.tags.environment
     project     = var.tags.project
-    tier        = "web"
-  }
+    tier        = "web_vmss"
+}
+
 
   admin_ssh_key {
     username   = var.admin_username
@@ -179,8 +185,9 @@ resource "azurerm_linux_virtual_machine_scale_set" "app" {
   tags = {
     environment = var.tags.environment
     project     = var.tags.project
-    tier        = "app"
-  }
+    tier        = "app_vmss"
+}
+
 
   admin_ssh_key {
     username   = var.admin_username
@@ -297,6 +304,12 @@ resource "azurerm_linux_virtual_machine" "db" {
   size                  = "Standard_B2s"
   admin_username        = var.admin_username
   network_interface_ids = [azurerm_network_interface.db.id]
+  tags = {
+    environment = var.tags.environment
+    project     = var.tags.project
+    tier        = "db"
+}
+
 
   admin_ssh_key {
     username   = var.admin_username
@@ -317,7 +330,6 @@ resource "azurerm_linux_virtual_machine" "db" {
     version   = "latest"
   }
 
-  tags = var.tags
   depends_on = [
     azurerm_key_vault_secret.ssh_public_key,
     azurerm_subnet.db,

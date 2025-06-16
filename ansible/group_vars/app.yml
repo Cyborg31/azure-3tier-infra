@@ -1,0 +1,2 @@
+ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q azureuser@172.178.35.28"'
+ansible_user: azureuser

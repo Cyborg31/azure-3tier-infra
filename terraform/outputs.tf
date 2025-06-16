@@ -61,3 +61,14 @@ output "admin_username" {
   value       = var.admin_username
 }
 
+# Service Principal credentials output
+output "sp_credentials" {
+  description = "Service Principal credentials for the three-tier app."
+  value = {
+    client_id       = azuread_application.three_tier_app.client_id
+    client_secret   = azuread_service_principal_password.three_tier_app_sp_password.value
+    tenant_id       = data.azurerm_client_config.current.tenant_id
+    subscription_id = data.azurerm_client_config.current.subscription_id
+  }
+  sensitive = true
+}

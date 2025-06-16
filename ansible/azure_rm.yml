@@ -1,9 +1,3 @@
-plugin: azure.azcollection.azure_rm
-include_resource_groups:
-  - "{{ resource_group_name }}" # This will come from your ansible_vars.sh
-# You might also add filters if needed, e.g.:
-# keyed_groups:
-#   - key: tags.tier
-#     prefix: tier
-#   - key: tags.role
-#     prefix: role
+---
+plugin: azure_rm
+auth_source: cli

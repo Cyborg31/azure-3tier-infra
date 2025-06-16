@@ -1,0 +1,58 @@
+---
+- name: Install MySQL Server ansible-lintname[db_install_mysql_server]
+  ansible.builtin.apt:
+    name: mysql-server
+    state: present
+    update_cache: true
+
+- name: Configure MySQL to listen on all interfaces ansible-lintname[db_configure_bind_address]
+  ansible.builtin.lineinfile:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    regexp: '^bind-address'
+    line: 'bind-address = 0.0.0.0'
+    backup: true
+
+- name: Restart MySQL service ansible-lintname[db_restart_mysql]
+  ansible.builtin.service:
+    name: mysql
+    state: restarted
+
+- name: Install pip and dependencies for MySQL modules ansible-lintname[db_install_python_deps]
+  ansible.builtin.apt:
+    name:
+      - python3-pip
+      - python3-dev
+      - libmysqlclient-dev
+    state: present
+    update_cache: true
+
+- name: Install PyMySQL via pip ansible-lintname[db_install_pymysql]
+  ansible.builtin.pip:
+    name: PyMySQL
+
+- name: Set MySQL root password and switch to mysql_native_password authentication ansible-lintname[db_set_root_password]
+  ansible.builtin.shell: |
+    mysql -u root <<EOF
+    ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'admin';
+    FLUSH PRIVILEGES;
+    EOF
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Create MySQL database ansible-lintname[db_create_database]
+  community.mysql.mysql_db:
+    name: nodeapp
+    state: present
+    login_user: root
+    login_password: "admin"
+
+- name: Create MySQL user and grant privileges ansible-lintname[db_create_user]
+  community.mysql.mysql_user:
+    name: nodeuser
+    password: "admin"
+    host: '%'
+    priv: 'nodeapp.*:ALL'
+    state: present
+    login_user: root
+    login_password: "admin"

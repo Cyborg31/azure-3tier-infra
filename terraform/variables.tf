@@ -179,3 +179,28 @@ variable "tags" {
     project     = "3tier-terraform"
   }
 }
+
+#Service Principal Values
+variable "client_id" {
+  description = "Service Principal Client ID (Application ID)"
+  type        = string
+  default     = ""
+}
+
+variable "client_secret" {
+  description = "Service Principal Client Secret"
+  type        = string
+  default     = ""
+}
+
+variable "tenant_id" {
+  description = "Tenant ID"
+  type        = string
+  default     = ""
+}
+
+variable "subscription_id" {
+  description = "Subscription ID"
+  type        = string
+  default     = ""
+}

@@ -1,0 +1,64 @@
+---
+- name: Install prerequisites ansible-lintname[backend_install_prereq]
+  ansible.builtin.apt:
+    name:
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+
+- name: Check if Node.js is installed ansible-lintname[backend_check_nodejs_installed]
+  ansible.builtin.command:
+    argv:
+      - node
+      - -v
+  register: node_version
+  failed_when: false
+  changed_when: false
+
+- name: Setup Node.js 18.x repo ansible-lintname[backend_setup_nodejs_repo]
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+  args:
+    executable: /bin/bash
+  when: node_version.rc != 0
+  changed_when: true
+
+- name: Install Node.js ansible-lintname[backend_install_nodejs]
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+    update_cache: true
+  when: node_version.rc != 0
+
+- name: Copy backend application files ansible-lintname[backend_copy_app_files]
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../app/backend/"
+    dest: /home/{{ ansible_user }}/backend/
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Install npm dependencies ansible-lintname[backend_npm_install]
+  community.general.npm:
+    path: /home/{{ ansible_user }}/backend/
+    production: true
+
+- name: Check if backend app is already running ansible-lintname[backend_check_app_running]
+  ansible.builtin.command:
+    argv:
+      - pgrep
+      - -f
+      - "node /home/{{ ansible_user }}/backend/server.js"
+  register: app_process
+  failed_when: false
+  changed_when: false
+
+- name: Start backend application if not running ansible-lintname[backend_start_app]
+  ansible.builtin.shell: "nohup node /home/{{ ansible_user }}/backend/server.js > /dev/null 2>&1 &"
+  args:
+    chdir: /home/{{ ansible_user }}/backend/
+    executable: /bin/bash
+  when: app_process.stdout == ""
+  changed_when: true

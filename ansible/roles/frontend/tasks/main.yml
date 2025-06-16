@@ -1,0 +1,19 @@
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Copy frontend files
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../app/frontend/"
+    dest: /var/www/html/
+    owner: www-data
+    group: www-data
+    mode: "0644"
+
+- name: Ensure Nginx is running
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true

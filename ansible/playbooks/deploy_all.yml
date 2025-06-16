@@ -1,4 +1,0 @@
----
-- import_playbook: deploy_db.yml
-- import_playbook: deploy_backend.yml
-- import_playbook: deploy_frontend.yml

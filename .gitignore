@@ -5,8 +5,8 @@ terraform/.terraform/
 terraform/*.tfplan
 
 # Ansible sensitive files
-ansible/ansible_vars.sh
-ansible/inventory/hosts.ini
+ansible/inventory
+ansible/ansible.cfg
 ansible/ansible-lint
 ansible/files/frontend
 ansible/files/backend

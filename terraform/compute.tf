@@ -1,337 +1,80 @@
-# Public IP for the Bastion VM
-resource "azurerm_public_ip" "bastion_vm_ip" {
-  name                = "bastion-vm-public-ip"
-  location            = azurerm_resource_group.main.location
+# Static Web App (Frontend - Free Tier)
+resource "azurerm_static_web_app" "frontend" {
+  name                = var.static_webapp_name
   resource_group_name = azurerm_resource_group.main.name
-  allocation_method   = "Static"
-  sku                 = "Standard"
+  location            = azurerm_resource_group.main.location
+  sku_tier            = "Free"  # Free tier has generous limits for dev/demo
   tags                = var.tags
 }
 
-# Network Interface for the Bastion VM
-resource "azurerm_network_interface" "bastion_vm_nic" {
-  name                = "bastion-vm-nic"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  tags                = var.tags
-
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = azurerm_subnet.bastion.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.bastion_vm_ip.id
-  }
+# Storage Account for Function App (required for backend function app)
+resource "azurerm_storage_account" "function_storage" {
+  name                     = lower("backendfuncstorage31") # Storage account name must be lowercase
+  resource_group_name       = azurerm_resource_group.main.name
+  location                 = azurerm_resource_group.main.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"  # Locally redundant storage - cost effective
+  tags                     = var.tags
 }
 
-# Associate Bastion NSG to the Bastion NIC
-resource "azurerm_network_interface_security_group_association" "bastion_nic_nsg_association" {
-  network_interface_id      = azurerm_network_interface.bastion_vm_nic.id
-  network_security_group_id = azurerm_network_security_group.bastion.id
-}
-
-# Bastion Virtual Machine (used as jump host for Ansible)
-resource "azurerm_linux_virtual_machine" "bastion" {
-  name                            = "bastion-vm"
-  resource_group_name             = azurerm_resource_group.main.name
-  location                        = azurerm_resource_group.main.location
-  size                            = "Standard_B1s"
-  admin_username                  = var.admin_username
-  disable_password_authentication = true
-  network_interface_ids           = [azurerm_network_interface.bastion_vm_nic.id]
-  tags = {
-    environment = var.tags.environment
-    project     = var.tags.project
-    tier        = "bastion"
-}
-
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-focal"
-    sku       = "20_04-lts"
-    version   = "latest"
-  }
-
-  # SSH key for authentication (using Key Vault secret)
-  admin_ssh_key {
-    username   = var.admin_username
-    public_key = azurerm_key_vault_secret.ssh_public_key.value
-  }
-}
-
-# VM Scale Set for Web Tier
-resource "azurerm_linux_virtual_machine_scale_set" "web" {
-  name                = "${var.resource_group_name}-web-vmss"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  sku                 = var.vm_size
-  instances           = var.web_instance_count # This variable serves as the 'default_capacity'
-  admin_username      = var.admin_username
-  tags = {
-    environment = var.tags.environment
-    project     = var.tags.project
-    tier        = "web_vmss"
-}
-
-
-  admin_ssh_key {
-    username   = var.admin_username
-    public_key = azurerm_key_vault_secret.ssh_public_key.value
-  }
-
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
-  }
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-
-  network_interface {
-    name    = "web-nic"
-    primary = true
-
-    ip_configuration {
-      name                                   = "internal"
-      primary                                = true
-      subnet_id                              = azurerm_subnet.web.id
-      load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.web.id]
-    }
-  }
-  depends_on = [
-    azurerm_key_vault_secret.ssh_public_key,
-    azurerm_lb_backend_address_pool.web,
-  ]
-}
-
-# Auto-scale settings for Web Tier VM Scale Set
-resource "azurerm_monitor_autoscale_setting" "web" {
-  name                = "${var.resource_group_name}-web-vmss-autoscaler"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  target_resource_id  = azurerm_linux_virtual_machine_scale_set.web.id
-  enabled             = true
-  tags                = var.tags
-
-  profile {
-    name = "default"
-
-    capacity {
-      minimum = var.web_min_instances  # Minimum instances
-      maximum = var.web_max_instances  # Maximum instances
-      default = var.web_instance_count # Default (initial) instances
-    }
-
-    # Scale out rule
-    rule {
-      metric_trigger {
-        metric_name        = "Percentage CPU"
-        metric_resource_id = azurerm_linux_virtual_machine_scale_set.web.id
-        time_grain         = "PT1M" # Aggregation time grain (1 minute)
-        statistic          = "Average"
-        time_window        = "PT5M" # Lookback time window (5 minutes)
-        operator           = "GreaterThanOrEqual"
-        threshold          = var.scale_out_cpu_threshold_percent # CPU threshold for scaling out
-        time_aggregation   = "Average"
-      }
-      scale_action {
-        type      = "ChangeCount"
-        value     = 1                                      # Increase instance count by 1
-        cooldown  = "PT${var.scale_out_cooldown_minutes}M" # Cooldown period
-        direction = "Increase"                             # Specifies the direction of scaling
-      }
-    }
-
-    # Scale in rule
-    rule {
-      metric_trigger {
-        metric_name        = "Percentage CPU"
-        metric_resource_id = azurerm_linux_virtual_machine_scale_set.web.id
-        time_grain         = "PT1M"
-        statistic          = "Average"
-        time_window        = "PT5M"
-        operator           = "LessThanOrEqual"
-        threshold          = var.scale_in_cpu_threshold_percent
-        time_aggregation   = "Average"
-      }
-      scale_action {
-        type      = "ChangeCount"
-        value     = 1                                     # Decrease instance count by 1
-        cooldown  = "PT${var.scale_in_cooldown_minutes}M" # Cooldown period
-        direction = "Decrease"                            # Specifies the direction of scaling
-      }
-    }
-  }
-}
-
-
-# VM Scale Set for App Tier
-resource "azurerm_linux_virtual_machine_scale_set" "app" {
-  name                = "${var.resource_group_name}-app-vmss"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  sku                 = var.vm_size
-  instances           = var.app_instance_count # This variable serves as the 'default_capacity'
-  admin_username      = var.admin_username
-  tags = {
-    environment = var.tags.environment
-    project     = var.tags.project
-    tier        = "app_vmss"
-}
-
-
-  admin_ssh_key {
-    username   = var.admin_username
-    public_key = azurerm_key_vault_secret.ssh_public_key.value
-  }
-
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
-  }
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-
-  network_interface {
-    name    = "app-nic"
-    primary = true
-
-    ip_configuration {
-      name                                   = "internal"
-      primary                                = true
-      subnet_id                              = azurerm_subnet.app.id
-      load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.app.id]
-    }
-  }
-  depends_on = [
-    azurerm_key_vault_secret.ssh_public_key,
-    azurerm_lb_backend_address_pool.app,
-  ]
-}
-
-# Auto-scale settings for App Tier VM Scale Set
-resource "azurerm_monitor_autoscale_setting" "app" {
-  name                = "${var.resource_group_name}-app-vmss-autoscaler"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  target_resource_id  = azurerm_linux_virtual_machine_scale_set.app.id
-  enabled             = true
-  tags                = var.tags
-
-  profile {
-    name = "default"
-
-    capacity {
-      minimum = var.app_min_instances
-      maximum = var.app_max_instances
-      default = var.app_instance_count
-    }
-
-    # Scale out rule
-    rule {
-      metric_trigger {
-        metric_name        = "Percentage CPU"
-        metric_resource_id = azurerm_linux_virtual_machine_scale_set.app.id
-        time_grain         = "PT1M"
-        statistic          = "Average"
-        time_window        = "PT5M"
-        operator           = "GreaterThanOrEqual"
-        threshold          = var.scale_out_cpu_threshold_percent
-        time_aggregation   = "Average"
-      }
-      scale_action {
-        type      = "ChangeCount"
-        value     = 1
-        cooldown  = "PT${var.scale_out_cooldown_minutes}M"
-        direction = "Increase" # Specifies the direction of scaling
-      }
-    }
-
-    # Scale in rule
-    rule {
-      metric_trigger {
-        metric_name        = "Percentage CPU"
-        metric_resource_id = azurerm_linux_virtual_machine_scale_set.app.id
-        time_grain         = "PT1M"
-        statistic          = "Average"
-        time_window        = "PT5M"
-        operator           = "LessThanOrEqual"
-        threshold          = var.scale_in_cpu_threshold_percent
-        time_aggregation   = "Average"
-      }
-      scale_action {
-        type      = "ChangeCount"
-        value     = 1
-        cooldown  = "PT${var.scale_in_cooldown_minutes}M"
-        direction = "Decrease" # Specifies the direction of scaling
-      }
-    }
-  }
-}
-
-# Network Interface for Database VM
-resource "azurerm_network_interface" "db" {
-  name                = "${var.resource_group_name}-db-nic"
+# App Service Plan for Function App (Y1 = Consumption Plan - cheapest)
+resource "azurerm_service_plan" "function_plan" {
+  name                = "${var.tags["project"]}-func-plan"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = azurerm_subnet.db.id
-    private_ip_address_allocation = "Dynamic"
-  }
+  sku_name = "Y1"   # SKU for Consumption Plan
+  os_type  = "Linux"
+
+  tags = var.tags
 }
 
-# Single Linux VM for Database Tier
-resource "azurerm_linux_virtual_machine" "db" {
-  name                  = "${var.resource_group_name}-db-vm"
-  resource_group_name   = azurerm_resource_group.main.name
-  location              = azurerm_resource_group.main.location
-  size                  = "Standard_B2s"
-  admin_username        = var.admin_username
-  network_interface_ids = [azurerm_network_interface.db.id]
-  tags = {
-    environment = var.tags.environment
-    project     = var.tags.project
-    tier        = "db"
+# Function App (Linux Function App)
+resource "azurerm_linux_function_app" "backend" {
+  name                       = var.function_app_name
+  location                   = azurerm_resource_group.main.location
+  resource_group_name        = azurerm_resource_group.main.name
+  storage_account_name       = azurerm_storage_account.function_storage.name
+  storage_account_access_key = azurerm_storage_account.function_storage.primary_access_key
+  service_plan_id            = azurerm_service_plan.function_plan.id
+
+  identity {
+    type = "SystemAssigned"
+  }
+  site_config {}
+
+  # App settings including DB connection info from SQL Server and Key Vault secret
+  app_settings = {
+    "DB_SERVER"   = azurerm_mssql_server.sql_server.fully_qualified_domain_name
+    "DB_NAME"     = azurerm_mssql_database.sql_database.name
+    "DB_USER"     = "dbuser"
+    "DB_PASSWORD" = azurerm_key_vault_secret.db_admin_password.value
+  }
+
+  tags = var.tags
 }
 
+# Azure SQL Server instance (no public network access for security)
+resource "azurerm_mssql_server" "sql_server" {
+  name                         = var.sql_server_name
+  resource_group_name          = azurerm_resource_group.main.name
+  location                     = azurerm_resource_group.main.location
+  version                      = "12.0"
+  administrator_login          = "dbuser"
+  administrator_login_password = azurerm_key_vault_secret.db_admin_password.value
 
-  admin_ssh_key {
-    username   = var.admin_username
-    public_key = azurerm_key_vault_secret.ssh_public_key.value
-  }
+  public_network_access_enabled = false  # disables public internet access
+  minimum_tls_version           = "1.2"
 
-  disable_password_authentication = true
+  tags = var.tags
+}
 
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
+# Azure SQL Database (Basic SKU to minimize cost)
+resource "azurerm_mssql_database" "sql_database" {
+  name        = "${var.tags["project"]}-sql-db"
+  server_id   = azurerm_mssql_server.sql_server.id
+  sku_name    = "Basic"
+  collation   = "SQL_Latin1_General_CP1_CI_AS"
 
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
-  }
-
-  depends_on = [
-    azurerm_key_vault_secret.ssh_public_key,
-    azurerm_subnet.db,
-  ]
+  tags = var.tags
 }

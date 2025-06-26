@@ -1,90 +1,112 @@
-# 🚀 Azure 3-Tier Infra Deployment (Terraform + Ansible)
+# ☁️ 3-Tier Application on Azure with Terraform
 
-This project automates the secure deployment of a 3-tier infrastructure on Azure using **Terraform**, **Ansible**, and a **Makefile**.
+This project automates the deployment of a fully functional, secure, and serverless **3-tier web application** architecture on **Microsoft Azure** using **Terraform**.
 
-## ✅ Features
+## 📦 Architecture Overview
 
-- Infrastructure with Terraform
-- Secrets via Azure Key Vault (no hardcoding)
-- Ansible deployment with dynamic inventory
-- SSH via Bastion → Jumpbox → Internal VMs
-- One command deployment with `make all`
-- Modular, scalable, and cloud-ready
+The solution consists of:
 
-🏗️ Architecture Overview
+- **Frontend**: Deployed using **Azure Static Web Apps**.
+- **Backend**: Built on **Azure Linux Function Apps** (serverless).
+- **Database**: Managed **Azure SQL Database** (PaaS).
+- **Infrastructure**: Deployed securely using **Azure Key Vault**, **VNet**, **NSGs**, and **Subnets**.
 
-This project implements a secure, scalable 3-tier web application architecture on Azure, fully automated using Terraform, Ansible, and a Makefile-based pipeline.
+## 🛠️ Technologies Used
 
-🔐 Security & Access
+- **Terraform** for infrastructure provisioning
+- **Azure Static Web App** (Frontend)
+- **Azure Linux Function App** (Backend)
+- **Azure SQL Database**
+- **Azure Key Vault** for secret management
+- **Azure Virtual Network** with subnets and NSGs
+- **Azure AD Service Principal** for secure automation
 
-    Azure Bastion: Provides secure browser-based access to the Jumpbox VM from the Azure Portal without exposing public IPs on internal VMs.
+---
 
-    Jumpbox VM: Acts as a secure SSH gateway into the private infrastructure (App and DB tiers). Accessible via Azure Bastion only.
+## 📁 Project Structure
 
-🌐 Network Layout
+terraform/
+├── main.tf
+├── providers.tf
+├── network.tf
+├── compute.tf
+├── keyvault.tf
+├── variables.tf
+├── terraform.tfvars
+├── outputs.tf
+└── README.md
 
-    Virtual Network with five subnets:
 
-        Web Subnet (Public): Hosts the web frontend behind a public load balancer.
+---
 
-        App Subnet (Private): Hosts backend application servers behind a private load balancer.
+## 🔐 Secrets Management
 
-        DB Subnet (Private): Hosts MySQL database VM.
+- **No secrets are hardcoded.**
+- Secrets like SQL password, SP credentials, tenant ID, and subscription ID are securely stored in **Azure Key Vault**.
+- A **Service Principal** is created and assigned the **Contributor** role, and its credentials are stored in the vault for CI/CD integration.
 
-        Jumpbox Subnet: Hosts the Jumpbox VM for internal SSH access.
+---
 
-        AzureBastionSubnet: Required subnet for Azure Bastion.
+## 🚀 Deployment Steps
 
-⚙️ Automation Pipeline
+1. **Install Terraform CLI**
+   ```bash
+   brew install terraform  # macOS
+   sudo apt install terraform  # Linux
 
-    Terraform provisions the entire Azure infrastructure including VMs, subnets, NSGs, load balancers, and Azure Bastion.
+    Clone this repo
 
-    Makefile orchestrates Terraform, dynamic inventory generation, and Ansible deployment.
+git clone https://github.com/<your-org>/3tier-terraform-azure.git
+cd 3tier-terraform-azure
 
-    Ansible installs required packages, configures servers, and deploys the frontend/backend code to the VMs.
+Update terraform.tfvars
 
-📦 Application
+location            = "westus2"
+resource_group_name = "my3tier-rg"
+static_webapp_name  = "static-frontend"
+...
 
-    Frontend (Web Tier): Node.js app served via Nginx, accessible over the internet.
+Initialize Terraform
 
-    Backend (App Tier): Node.js API served privately, only reachable from the Web tier.
+export environment variables if required
+export ARM_SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
+export ARM_TENANT_ID=$(az account show --query "tenantId" -o tsv)
 
-    Database (DB Tier): MySQL, accessible only from the App tier.
+terraform init
 
-## 🔧 Prerequisites
+Review the execution plan
 
-- Azure CLI  
-- Terraform  
-- Ansible  
-- Bash shell (WSL/Ubuntu)  
-- SSH key (`~/.ssh/id_rsa`)
+terraform plan
 
-## 🛠️ Quick Setup
+Apply the configuration
 
-```bash
-git clone https://github.com/Cyborg31/azure-3tier-infra.git
-cd azure-3tier-infra
+    terraform apply
 
-ssh-keygen -t rsa -b 4096 -C "your_email@example.com"  # if not done
+    Output
+    Terraform will print useful outputs:
 
-make all  # provisions infra and deploys app
-```
+        Static Web App URL
 
-🧹 Cleanup
+        Function App URL
 
-```bash
-make clean
-```
+        SQL Server FQDN
 
-📁 Structure
+        Key Vault URI
 
-- terraform/ – Infra as code
-- ansible/ – Playbooks and inventory
-- Makefile – Full automation
-- README.md – Docs
+✅ Benefits of This Architecture
 
-👨‍💻 Author
+    Fully serverless: No VM maintenance, scalable, and cost-effective.
 
-Sudip Giri | 📧 sudeepgiri31@gmail.com | 📍 Toronto
+    Secure: VNet isolation, NSGs, no public DB access, and Key Vault integration.
 
-Created as a secure cloud infrastructure automation project for learning.
+    Modular & reusable: Code is organized by concern (network, compute, secrets).
+
+    Production-ready: Can be integrated with GitLab/GitHub CI/CD pipelines using stored credentials.
+
+🧪 Next Steps / CI/CD Integration
+
+To integrate with CI/CD:
+
+    Retrieve Service Principal credentials from Key Vault.
+
+    Use those in your pipeline to run Terraform plans and applies.

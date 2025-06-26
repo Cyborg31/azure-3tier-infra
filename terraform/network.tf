@@ -15,18 +15,18 @@ resource "azurerm_virtual_network" "main" {
 }
 
 # Create Subnets
-resource "azurerm_subnet" "web" {
-  name                 = var.web_subnet_name
+resource "azurerm_subnet" "frontend" {
+  name                 = var.frontend_subnet_name
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = [var.web_subnet_prefix]
+  address_prefixes     = [var.frontend_subnet_prefix]
 }
 
-resource "azurerm_subnet" "app" {
-  name                 = var.app_subnet_name
+resource "azurerm_subnet" "backend" {
+  name                 = var.backend_subnet_name
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = [var.app_subnet_prefix]
+  address_prefixes     = [var.backend_subnet_prefix]
 }
 
 resource "azurerm_subnet" "db" {
@@ -36,21 +36,16 @@ resource "azurerm_subnet" "db" {
   address_prefixes     = [var.db_subnet_prefix]
 }
 
-resource "azurerm_subnet" "bastion" {
-  name                 = var.bastion_subnet_name
-  resource_group_name  = azurerm_resource_group.main.name
-  virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = [var.bastion_subnet_prefix]
-}
+# Network Security Groups
 
-# Network Security Groups with relevant rules
-
-resource "azurerm_network_security_group" "web" {
-  name                = "web-nsg"
+# Frontend NSG
+resource "azurerm_network_security_group" "frontend" {
+  name                = "frontend-nsg"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   tags                = var.tags
 
+  # Allow HTTP from Internet
   security_rule {
     name                       = "AllowHTTP"
     priority                   = 100
@@ -63,25 +58,41 @@ resource "azurerm_network_security_group" "web" {
     destination_address_prefix = "*"
   }
 
+  # Allow HTTPS from Internet
   security_rule {
-    name                       = "AllowSSHFromBastion"
+    name                       = "AllowHTTPS"
     priority                   = 110
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = var.bastion_subnet_prefix
+    destination_port_range     = "443"
+    source_address_prefix      = "Internet"
+    destination_address_prefix = "*"
+  }
+
+  # Deny all other inbound traffic explicitly
+  security_rule {
+    name                       = "DenyAllInbound"
+    priority                   = 4096
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
 }
 
-resource "azurerm_network_security_group" "app" {
-  name                = "app-nsg"
+# Backend NSG
+resource "azurerm_network_security_group" "backend" {
+  name                = "backend-nsg"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   tags                = var.tags
 
+  # Allow backend app port from frontend subnet only
   security_rule {
     name                       = "AllowAppPort"
     priority                   = 100
@@ -90,29 +101,45 @@ resource "azurerm_network_security_group" "app" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "8080"
-    source_address_prefix      = var.web_subnet_prefix
+    source_address_prefix      = var.frontend_subnet_prefix
     destination_address_prefix = "*"
   }
 
+  # Allow outbound to DB subnet on MySQL port
   security_rule {
-    name                       = "AllowSSHFromBastion"
-    priority                   = 110
-    direction                  = "Inbound"
+    name                       = "AllowOutboundMySQLToDB"
+    priority                   = 100
+    direction                  = "Outbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = var.bastion_subnet_prefix
+    destination_port_range     = "3306"
+    destination_address_prefix = var.db_subnet_prefix
+    source_address_prefix      = "*"
+  }
+
+  # Deny all other inbound traffic explicitly
+  security_rule {
+    name                       = "DenyAllInbound"
+    priority                   = 4096
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
 }
 
+# DB NSG
 resource "azurerm_network_security_group" "db" {
   name                = "db-nsg"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   tags                = var.tags
 
+  # Allow MySQL from backend subnet only
   security_rule {
     name                       = "AllowMySQL"
     priority                   = 100
@@ -121,73 +148,37 @@ resource "azurerm_network_security_group" "db" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "3306"
-    source_address_prefix      = var.app_subnet_prefix
+    source_address_prefix      = var.backend_subnet_prefix
     destination_address_prefix = "*"
   }
 
+  # Deny all other inbound traffic explicitly
   security_rule {
-    name                       = "AllowSSHFromBastion"
-    priority                   = 110
+    name                       = "DenyAllInbound"
+    priority                   = 4096
     direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
+    access                     = "Deny"
+    protocol                   = "*"
     source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = var.bastion_subnet_prefix
-    destination_address_prefix = "*"
-  }
-}
-
-# Network Security Group for the Bastion VM
-resource "azurerm_network_security_group" "bastion" {
-  name                = "bastion-nsg"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  tags                = var.tags
-
-  security_rule {
-    name                       = "AllowSSHFromMyIP"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = var.my_public_ip
-    destination_address_prefix = "*"
-  }
-
-  security_rule {
-    name                       = "AllowOutboundInternet"
-    priority                   = 200
-    direction                  = "Outbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "80-443"
+    destination_port_range     = "*"
     source_address_prefix      = "*"
-    destination_address_prefix = "Internet"
+    destination_address_prefix = "*"
   }
 }
 
-# Associate NSGs to subnets
+# Associate NSGs with Subnets
 
-resource "azurerm_subnet_network_security_group_association" "web" {
-  subnet_id                 = azurerm_subnet.web.id
-  network_security_group_id = azurerm_network_security_group.web.id
+resource "azurerm_subnet_network_security_group_association" "frontend" {
+  subnet_id                 = azurerm_subnet.frontend.id
+  network_security_group_id = azurerm_network_security_group.frontend.id
 }
 
-resource "azurerm_subnet_network_security_group_association" "app" {
-  subnet_id                 = azurerm_subnet.app.id
-  network_security_group_id = azurerm_network_security_group.app.id
+resource "azurerm_subnet_network_security_group_association" "backend" {
+  subnet_id                 = azurerm_subnet.backend.id
+  network_security_group_id = azurerm_network_security_group.backend.id
 }
 
 resource "azurerm_subnet_network_security_group_association" "db" {
   subnet_id                 = azurerm_subnet.db.id
   network_security_group_id = azurerm_network_security_group.db.id
-}
-
-resource "azurerm_subnet_network_security_group_association" "bastion" {
-  subnet_id                 = azurerm_subnet.bastion.id
-  network_security_group_id = azurerm_network_security_group.bastion.id
 }

@@ -2,18 +2,21 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.85.0"
+      version = "~> 4.33.0"
     }
     azuread = {
       source  = "hashicorp/azuread"
-      version = "3.4.0"
+      version = "~> 3.4.0"
     }
   }
+  required_version = ">= 1.4.0"
 }
 
 provider "azurerm" {
-  skip_provider_registration = true
   features {
+    resource_group {
+      prevent_deletion_if_contains_resources = false
+    }
     key_vault {
       purge_soft_delete_on_destroy = true
     }

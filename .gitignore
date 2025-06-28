@@ -5,19 +5,6 @@ terraform/terraform.tfstate.backup
 terraform/.terraform/
 terraform/*.tfplan
 
-# Ansible sensitive files
-ansible/inventory
-ansible/ansible.cfg
-ansible/ansible-lint
-ansible/files/frontend
-ansible/files/backend
-
-# SSH keys
-*.pem
-*.key
-id_rsa
-id_rsa.pub
-
 # Editor and log files
 .vscode/
 *.log

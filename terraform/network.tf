@@ -27,6 +27,14 @@ resource "azurerm_subnet" "backend" {
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.backend_subnet_prefix]
+
+    delegation {
+    name = "functionAppDelegation"
+    service_delegation {
+      name    = "Microsoft.Web/serverFarms"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
 }
 
 resource "azurerm_subnet" "db" {

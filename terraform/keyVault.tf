@@ -18,7 +18,7 @@ resource "azuread_service_principal_password" "three-tier_app_sp_password" {
 resource "azurerm_role_assignment" "three-tier_app_sp_contributor_role" {
   principal_id         = azuread_service_principal.three-tier_app_sp.object_id
   role_definition_name = "Contributor"
-  scope                = var.role_assignment_scope != "" ? var.role_assignment_scope : "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+  scope                = var.role_assignment_scope != "" ? var.role_assignment_scope : azurerm_resource_group.main.id
 
   depends_on = [
     azuread_service_principal.three-tier_app_sp,

@@ -1,112 +1,116 @@
-# ☁️ 3-Tier Application on Azure with Terraform
+# Azure 3-Tier Web Application Deployment using Terraform
 
-This project automates the deployment of a fully functional, secure, and serverless **3-tier web application** architecture on **Microsoft Azure** using **Terraform**.
+## Project Overview
 
-## 📦 Architecture Overview
+This project demonstrates a simple yet robust 3-tier web application deployed on Microsoft Azure using Infrastructure as Code (Terraform) and automated with Makefiles. The application showcases fundamental cloud architecture principles, secure networking practices, and automated deployment pipelines.
 
-The solution consists of:
+The core functionality is a basic web page that, upon a button click, fetches data from an Azure SQL Database via an Azure Function App and displays it to the user.
 
-- **Frontend**: Deployed using **Azure Static Web Apps**.
-- **Backend**: Built on **Azure Linux Function Apps** (serverless).
-- **Database**: Managed **Azure SQL Database** (PaaS).
-- **Infrastructure**: Deployed securely using **Azure Key Vault**, **VNet**, **NSGs**, and **Subnets**.
+## Architecture
 
-## 🛠️ Technologies Used
+The application is structured into three logical tiers:
 
-- **Terraform** for infrastructure provisioning
-- **Azure Static Web App** (Frontend)
-- **Azure Linux Function App** (Backend)
-- **Azure SQL Database**
-- **Azure Key Vault** for secret management
-- **Azure Virtual Network** with subnets and NSGs
-- **Azure AD Service Principal** for secure automation
+1.  **Frontend (Presentation Layer):** A static web application hosted on Azure Static Web Apps. It's built with plain HTML, CSS, and JavaScript.
+2.  **Backend (Application Logic Layer):** An Azure Function App (Python) that serves as a simple API. It handles requests from the frontend, queries the database, and returns the data.
+3.  **Database (Data Layer):** An Azure SQL Database that stores the application's data.
 
----
+**Key Architectural Highlights:**
 
-## 📁 Project Structure
+* **Secure Database Connectivity:** The Azure Function App securely connects to the Azure SQL Database using **Virtual Network (VNet) Integration** and a Private Endpoint for the database. This ensures that database traffic remains entirely within your private Azure network, avoiding the public internet.
+* **Serverless Backend:** The Azure Function App runs on a **Premium Plan (EP1)**, providing VNet integration, dedicated resources, and eliminating cold starts for a responsive API.
+* **Global Frontend Delivery:** Azure Static Web Apps provide global content delivery network (CDN) capabilities for fast and reliable frontend access.
+* **Infrastructure as Code (IaC):** All Azure resources are provisioned and managed using HashiCorp Terraform, ensuring consistent and repeatable deployments.
+* **Automated Deployment:** A `Makefile` orchestrates the entire deployment process, from infrastructure provisioning to application code deployment for both frontend and backend.
 
-terraform/
-├── main.tf
-├── providers.tf
-├── network.tf
-├── compute.tf
-├── keyvault.tf
-├── variables.tf
-├── terraform.tfvars
-├── outputs.tf
-└── README.md
+## Features
 
+* Displays data from a backend database on a button click.
+* Fully automated infrastructure provisioning and application deployment.
+* Secure and isolated network communication between application tiers.
+* Serverless backend with optimized performance.
 
----
+## Technologies Used
 
-## 🔐 Secrets Management
+* **Cloud Provider:** Microsoft Azure
+* **Infrastructure as Code:** HashiCorp Terraform
+* **Automation:** GNU Make
+* **Frontend:** HTML, CSS, JavaScript (Static Web App)
+* **Backend:** Python (Azure Functions)
+* **Database:** Azure SQL Database
 
-- **No secrets are hardcoded.**
-- Secrets like SQL password, SP credentials, tenant ID, and subscription ID are securely stored in **Azure Key Vault**.
-- A **Service Principal** is created and assigned the **Contributor** role, and its credentials are stored in the vault for CI/CD integration.
+## Prerequisites
 
----
+Before deploying this project, ensure you have the following installed and configured on your local machine:
 
-## 🚀 Deployment Steps
+* **Git:** For cloning the repository.
+* **Azure CLI:** Authenticated (`az login`) to the Azure subscription where you want to deploy resources, and the correct subscription is set (`az account set --subscription "Your Subscription Name or ID"`).
+* **Terraform (v1.0.0+):** [Download & Install](https://www.terraform.io/downloads.html)
+* **Azure Functions Core Tools (v4.x):** Install globally via npm: `npm install -g azure-functions-core-tools@4 --unsafe-perm true`
+* **Python 3.x:** (e.g., Python 3.9+) Ensure `python3` is in your system's PATH.
+* **`make` utility:** (Usually pre-installed on Linux/macOS. For Windows, use WSL or Git Bash).
 
-1. **Install Terraform CLI**
-   ```bash
-   brew install terraform  # macOS
-   sudo apt install terraform  # Linux
+## Project Setup
 
-    Clone this repo
+1.  **Clone the Repository:**
+    ```bash
+    git clone [https://github.com/your-username/azure-3tier-infra.git](https://github.com/your-username/azure-3tier-infra.git)
+    cd azure-3tier-infra
+    ```
+    ```
 
-git clone https://github.com/<your-org>/3tier-terraform-azure.git
-cd 3tier-terraform-azure
+## Deployment Steps
 
-Update terraform.tfvars
+All deployment steps are automated via the `Makefile`. Run these commands from the root of your `azure-3tier-infra` directory.
 
-location            = "westus2"
-resource_group_name = "my3tier-rg"
-static_webapp_name  = "static-frontend"
-...
+1.  **Full Deployment (Infrastructure, Frontend, Backend):**
+    This command will provision all Azure resources, set up the Python virtual environment, install backend dependencies, deploy the frontend, and deploy the backend.
 
-Initialize Terraform
+    ```bash
+    make all
+    ```
+    *This is the recommended command for initial setup.*
 
-export environment variables if required
-export ARM_SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
-export ARM_TENANT_ID=$(az account show --query "tenantId" -o tsv)
+2.  **Deploy Infrastructure Only:**
+    Provisions or updates Azure resources defined in Terraform.
+    ```bash
+    make infra
+    ```
 
-terraform init
+3.  **Deploy Frontend Only:**
+    Deploys the static HTML/CSS/JS to Azure Static Web Apps.
+    ```bash
+    make frontend
+    ```
 
-Review the execution plan
+4.  **Deploy Backend Only:**
+    Sets up the Python virtual environment (if not already done) and deploys the Azure Function App.
+    ```bash
+    make backend
+    ```
 
-terraform plan
+## Post-Deployment & Usage
 
-Apply the configuration
+After successful deployment (especially `make all`), you can retrieve the application URLs:
 
-    terraform apply
+```bash
+make show_urls
 
-    Output
-    Terraform will print useful outputs:
+This will output the URL for your Azure Static Web App (frontend) and your Azure Function App (backend).
 
-        Static Web App URL
+    Open the Static Web App URL in your web browser.
 
-        Function App URL
+    Click the button on the page to fetch data from your backend Function App.
 
-        SQL Server FQDN
+Cleanup
 
-        Key Vault URI
+To destroy all Azure resources provisioned by Terraform:
+Bash
 
-✅ Benefits of This Architecture
+make destroy
 
-    Fully serverless: No VM maintenance, scalable, and cost-effective.
+Warning: This command will permanently delete all associated Azure resources and their data. Use with caution.
 
-    Secure: VNet isolation, NSGs, no public DB access, and Key Vault integration.
+To clean up local build artifacts and the Python virtual environment:
+Bash
 
-    Modular & reusable: Code is organized by concern (network, compute, secrets).
-
-    Production-ready: Can be integrated with GitLab/GitHub CI/CD pipelines using stored credentials.
-
-🧪 Next Steps / CI/CD Integration
-
-To integrate with CI/CD:
-
-    Retrieve Service Principal credentials from Key Vault.
-
-    Use those in your pipeline to run Terraform plans and applies.
+make clean

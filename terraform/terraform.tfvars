@@ -1,7 +1,7 @@
 location            = "westus2"
 resource_group_name = "three-tier-rg"
 static_webapp_name  = "static-frontend"
-function_app_name   = "backend-function-three-tier-app-31"
+function_app_name   = "backend-func-3tier"
 sql_server_name     = "3tdbs"
 
 vnet_name           = "my-three-tier-vnet"

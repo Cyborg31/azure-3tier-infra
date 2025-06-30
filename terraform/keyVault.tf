@@ -64,6 +64,12 @@ resource "random_password" "db_password" {
   override_special = "!@#$%&*"
 }
 
+# random password for admin api
+resource "random_password" "admin_api_key" {
+  length  = 32
+  special = true
+}
+
 # Store database password in Key Vault
 resource "azurerm_key_vault_secret" "db_admin_password" {
   name         = "db-admin-password"
@@ -74,6 +80,17 @@ resource "azurerm_key_vault_secret" "db_admin_password" {
 
   depends_on = [azurerm_key_vault.main]
 }
+
+# Store admin api key in Key Vault
+resource "azurerm_key_vault_secret" "admin_api_key" {
+  name         = "admin-api-key"
+  value        = random_password.admin_api_key.result
+  key_vault_id = azurerm_key_vault.main.id
+  tags         = var.tags
+
+  depends_on = [azurerm_key_vault.main]
+}
+
 
 # Store Service Principal client ID as a secret in Key Vault
 resource "azurerm_key_vault_secret" "sp_client_id" {

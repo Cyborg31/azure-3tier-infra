@@ -55,6 +55,9 @@ Before deploying this project, ensure you have the following installed and confi
     ```bash
     git clone [https://github.com/your-username/azure-3tier-infra.git](https://github.com/your-username/azure-3tier-infra.git)
     cd azure-3tier-infra
+    az login
+    export ARM_SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
+    export ARM_TENANT_ID=$(az account show --query "tenantId" -o tsv)
     ```
     ```
 
@@ -114,3 +117,12 @@ To clean up local build artifacts and the Python virtual environment:
 Bash
 
 make clean
+
+API_KEY=$(az keyvault secret show --name admin-api-key --vault-name my-three-tier-rg-kv --query value -o tsv)
+ENCODED_KEY=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$API_KEY")
+curl -v "https://backend-func-3tier.azurewebsites.net/api/init-db?key=$ENCODED_KEY"
+
+API_KEY=$(az keyvault secret show --name admin-api-key --vault-name my-three-tier-rg-kv --query value -o tsv)
+ENCODED_KEY=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$API_KEY")
+curl "https://backend-func-3tier.azurewebsites.net/api/getdata?key=$ENCODED_KEY"
+

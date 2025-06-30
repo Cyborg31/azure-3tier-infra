@@ -28,6 +28,14 @@ resource "azurerm_service_plan" "function_plan" {
   tags     = var.tags
 }
 
+# Application Insights Resource
+resource "azurerm_application_insights" "app_insights" {
+  name                = "${var.tags["project"]}-app-insights"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  application_type    = "web"
+}
+
 # Function App (Linux)
 resource "azurerm_linux_function_app" "backend" {
   name                       = var.function_app_name
@@ -46,12 +54,15 @@ resource "azurerm_linux_function_app" "backend" {
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"                = "python"
     "WEBSITE_RUN_FROM_PACKAGE"                = "1"
-    "DB_SERVER"                              = azurerm_mssql_server.sql_server.fully_qualified_domain_name
-    "DB_NAME"                                = azurerm_mssql_database.sql_database.name
-    "DB_USER"                                = "dbuser"
-    "DB_PASSWORD"                            = azurerm_key_vault_secret.db_admin_password.value
-    "ADMIN_API_KEY"                          = azurerm_key_vault_secret.admin_api_key.value
-    "WEBSITE_MINIMUM_ELASTIC_INSTANCE_COUNT" = "1"
+    "WEBSITE_VNET_ROUTE_ALL"                  = "1"
+    "DB_SERVER"                               = azurerm_mssql_server.sql_server.fully_qualified_domain_name
+    "DB_NAME"                                 = azurerm_mssql_database.sql_database.name
+    "DB_USER"                                 = "dbuser"
+    "DB_PASSWORD"                             = azurerm_key_vault_secret.db_admin_password.value
+    "ADMIN_API_KEY"                           = azurerm_key_vault_secret.admin_api_key.value
+    "WEBSITE_MINIMUM_ELASTIC_INSTANCE_COUNT"  = "1"
+    "APPINSIGHTS_INSTRUMENTATIONKEY"        = azurerm_application_insights.app_insights.instrumentation_key
+    "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.app_insights.connection_string
   }
 
   tags = var.tags

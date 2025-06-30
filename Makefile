@@ -1,89 +1,139 @@
-.PHONY: all infra frontend backend show_urls clean destroy help venv-setup build-frontend
+.PHONY: all infra frontend backend show_urls clean destroy help venv-setup init-db-trigger
 
 # Configuration Variables
-FRONTEND_DIR = app/frontend
-BACKEND_DIR = app/backend
-TERRAFORM_DIR = terraform
-VENV_DIR = .venv
-KEY_VAULT_NAME = my-three-tier-rg-kv
+FRONTEND_DIR := app/frontend
+BACKEND_DIR := app/backend
+TERRAFORM_DIR := terraform
+VENV_DIR := .venv
 
-# Dynamic Variables (Fetched from Terraform Outputs)
-RG_NAME := $(shell cd $(TERRAFORM_DIR) && terraform output -raw resource_group_name 2>/dev/null)
-SWA_NAME := $(shell cd $(TERRAFORM_DIR) && terraform output -raw static_webapp_name 2>/dev/null)
-FUNC_NAME := $(shell cd $(TERRAFORM_DIR) && terraform output -raw function_app_name 2>/dev/null)
-SWA_URL := $(shell cd $(TERRAFORM_DIR) && terraform output -raw static_webapp_url 2>/dev/null)
-
-all: infra build-frontend frontend backend show_urls
-	@echo "All deployment targets finished. Check URLs above."
+all: infra frontend backend init-db-trigger show_urls
+	@echo ""
+	@echo "✅ All deployment targets finished. Check URLs above."
 
 infra:
-	@echo "--- Deploying Azure Infrastructure with Terraform ---"
-	cd $(TERRAFORM_DIR) && \
-	  terraform init && \
-	  terraform apply -auto-approve
+	@echo "--- 🚀 Deploying Azure Infrastructure with Terraform ---"
+	@cd $(TERRAFORM_DIR) && \
+	terraform init && \
+	terraform apply -auto-approve || { echo "❌ ERROR: Terraform infrastructure deployment failed!"; exit 1; }
 
-build-frontend:
-	@echo "--- Injecting API Key into Frontend ---"
-	@API_KEY=$$(az keyvault secret show --name admin-api-key --vault-name $(KEY_VAULT_NAME) --query value -o tsv); \
-	sed "s/__ADMIN_API_KEY__/$$API_KEY/g" $(FRONTEND_DIR)/index.html > $(FRONTEND_DIR)/index.tmp.html && \
-	mv $(FRONTEND_DIR)/index.tmp.html $(FRONTEND_DIR)/index.html
-
-frontend:
-	@echo "--- Deploying Frontend (Azure Static Web App) ---"
-	@if [ -z "$(SWA_NAME)" ]; then \
-	    echo "ERROR: Static Web App name not found. Run 'make infra' first."; \
-	    exit 1; \
-	fi
-	@echo "Fetching deployment token and deploying..."
-	@bash -c '\
-		DEPLOYMENT_TOKEN=$$(az staticwebapp secrets list \
-			--name "$(SWA_NAME)" \
-			--resource-group "$(RG_NAME)" \
-			--query properties.apiKey -o tsv); \
-		swa deploy \
-			--app-name "$(SWA_NAME)" \
-			--resource-group "$(RG_NAME)" \
-			--deployment-token $$DEPLOYMENT_TOKEN \
-			--app-location "$(FRONTEND_DIR)"; \
-	'
+frontend: infra
+	@echo "--- 🚀 Deploying Frontend (Azure Static Web App) ---"
+	@SWA_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw static_webapp_name 2>/dev/null); \
+	RG_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw resource_group_name 2>/dev/null); \
+	if [ -z "$$SWA_NAME" ]; then \
+		echo "❌ ERROR: Static Web App name not found."; exit 1; \
+	fi; \
+	echo "⏳ Waiting for Static Web App deployment token..."; \
+	MAX_RETRIES=15; RETRY_COUNT=0; \
+	while :; do \
+		DEPLOYMENT_TOKEN=$$(az staticwebapp secrets list --name "$$SWA_NAME" --resource-group "$$RG_NAME" --query properties.apiKey -o tsv 2>/dev/null); \
+		if [ -n "$$DEPLOYMENT_TOKEN" ]; then break; fi; \
+		if [ $$RETRY_COUNT -ge $$MAX_RETRIES ]; then \
+			echo "❌ ERROR: Deployment token not available."; exit 1; \
+		fi; \
+		echo "  ⏳ Token wait: $$RETRY_COUNT/$$MAX_RETRIES"; \
+		sleep 2; RETRY_COUNT=$$(($$RETRY_COUNT + 1)); \
+	done; \
+	echo "🔑 Token acquired. Deploying from $(FRONTEND_DIR)..."; \
+	swa deploy --app-name "$$SWA_NAME" \
+	           --resource-group "$$RG_NAME" \
+	           --deployment-token $$DEPLOYMENT_TOKEN \
+	           --app-location "$(FRONTEND_DIR)" || { echo "❌ ERROR: Static Web App deployment failed!"; exit 1; }; \
+	echo "✅ Frontend deployment complete."
 
 backend: venv-setup
-	@echo "--- Deploying Backend (Azure Function App) ---"
-	@if [ -z "$(FUNC_NAME)" ]; then \
-	    echo "ERROR: Function App name not found. Run 'make infra' first."; \
-	    exit 1; \
-	fi
-	@echo "Setting Python version to 3.12 on Function App: $(FUNC_NAME)"
-	@az functionapp config set --name $(FUNC_NAME) --resource-group $(RG_NAME) --linux-fx-version "Python|3.12"
-	@echo "Deploying backend code from $(BACKEND_DIR) to Function App: $(FUNC_NAME)"
-	@cd $(BACKEND_DIR) && func azure functionapp publish $(FUNC_NAME) --python
-	@echo "Backend deployment complete."
+	@echo "--- 🚀 Deploying Backend (Azure Function App) ---"
+	@FUNC_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw function_app_name 2>/dev/null); \
+	RG_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw resource_group_name 2>/dev/null); \
+	if [ -z "$$FUNC_NAME" ]; then \
+		echo "❌ ERROR: Function App name not found."; exit 1; \
+	fi; \
+	echo "⏳ Waiting for Function App readiness..."; \
+	MAX_RETRIES=15; RETRY_COUNT=0; \
+	while ! az functionapp show --name $$FUNC_NAME --resource-group $$RG_NAME >/dev/null 2>&1; do \
+		if [ $$RETRY_COUNT -ge $$MAX_RETRIES ]; then \
+			echo "❌ ERROR: Function App not ready."; exit 1; \
+		fi; \
+		echo "  ⏳ Wait: $$RETRY_COUNT/$$MAX_RETRIES"; \
+		sleep 2; RETRY_COUNT=$$(($$RETRY_COUNT + 1)); \
+	done; \
+	echo "🔧 Setting Python version for $$FUNC_NAME..."; \
+	az functionapp config set --name $$FUNC_NAME --resource-group $$RG_NAME --linux-fx-version "Python|3.12" || { echo "❌ ERROR: Failed to set Python version."; exit 1; }; \
+	echo "🚀 Publishing backend from $(BACKEND_DIR)..."; \
+	cd $(BACKEND_DIR) && func azure functionapp publish $$FUNC_NAME --python || { echo "❌ ERROR: Backend publish failed!"; exit 1; }; \
+	echo "✅ Backend deployment complete."
+
+init-db-trigger:
+	@echo "--- 🚀 Triggering init-db function ---"
+	@FUNC_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw function_app_name); \
+	RG_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw resource_group_name); \
+	KEY_VAULT_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw key_vault_name); \
+	echo "⏳ Waiting for admin-api-key secret..."; \
+	MAX_RETRIES=15; RETRY_COUNT=0; \
+	while ! az keyvault secret show --name admin-api-key --vault-name $$KEY_VAULT_NAME --query value -o tsv >/dev/null 2>&1; do \
+		if [ $$RETRY_COUNT -ge $$MAX_RETRIES ]; then echo "❌ ERROR: admin-api-key not found."; exit 1; fi; \
+		echo "  ⏳ Wait: $$RETRY_COUNT/$$MAX_RETRIES"; sleep 2; RETRY_COUNT=$$(($$RETRY_COUNT + 1)); \
+	done; \
+	ADMIN_API_KEY_RAW=$$(az keyvault secret show --name admin-api-key --vault-name $$KEY_VAULT_NAME --query value -o tsv); \
+	ADMIN_API_KEY=$$(python3 -c 'import urllib.parse; print(urllib.parse.quote_plus("'"$$ADMIN_API_KEY_RAW"'"))'); \
+	echo "⏳ Waiting for init-db function key..."; \
+	RETRY_COUNT=0; \
+	while ! az functionapp function keys list --resource-group $$RG_NAME --name $$FUNC_NAME --function-name init-db --query 'default' -o tsv >/dev/null 2>&1; do \
+		if [ $$RETRY_COUNT -ge $$MAX_RETRIES ]; then echo "❌ ERROR: Function key not ready."; exit 1; fi; \
+		echo "  ⏳ Wait: $$RETRY_COUNT/$$MAX_RETRIES"; sleep 2; RETRY_COUNT=$$(($$RETRY_COUNT + 1)); \
+	done; \
+	INIT_DB_FUNC_KEY=$$(az functionapp function keys list --resource-group $$RG_NAME --name $$FUNC_NAME --function-name init-db --query 'default' -o tsv); \
+	FUNC_URL="https://$$FUNC_NAME.azurewebsites.net/api/init-db?code=$$INIT_DB_FUNC_KEY&key=$$ADMIN_API_KEY"; \
+	echo "🔗 Triggering URL: $$FUNC_URL"; \
+	HTTP_STATUS=$$(curl -s -o /dev/null -w "%{http_code}" -X GET "$$FUNC_URL"); \
+	case $$HTTP_STATUS in \
+		200) echo "✅ init-db triggered successfully (HTTP 200)";; \
+		401) echo "❌ ERROR: Unauthorized (401). Check admin-api-key."; exit 1;; \
+		404) echo "❌ ERROR: Not Found (404). Is init-db deployed?"; exit 1;; \
+		500) echo "❌ ERROR: Internal Server Error (500). Check logs."; exit 1;; \
+		*) echo "❌ ERROR: Unexpected status $$HTTP_STATUS"; exit 1;; \
+	esac
 
 venv-setup:
-	@echo "--- Setting up Python Virtual Environment and installing dependencies ---"
-	@bash -c '\
-	if [ ! -d "$(VENV_DIR)" ]; then \
-		echo "Creating virtual environment at $(VENV_DIR)..."; \
-		python3 -m venv $(VENV_DIR); \
+	@echo "--- 🐍 Setting up Python virtual environment ---"
+	@if [ ! -d "$(VENV_DIR)" ]; then \
+		echo "Creating virtualenv..."; \
+		python3 -m venv $(VENV_DIR) || { echo "❌ ERROR: venv failed."; exit 1; }; \
 	fi; \
-	echo "Installing Python dependencies from $(BACKEND_DIR)/requirements.txt..."; \
-	$(VENV_DIR)/bin/pip install -r $(BACKEND_DIR)/requirements.txt; \
-	'
+	echo "📦 Installing dependencies..."; \
+	$(VENV_DIR)/bin/pip install --upgrade pip; \
+	$(VENV_DIR)/bin/pip install -r $(BACKEND_DIR)/requirements.txt || { echo "❌ ERROR: pip install failed."; exit 1; }
 
 show_urls:
-	@echo "--- Deployment Complete! Your Application is Live At: ---"
-	@if [ -z "$(SWA_URL)" ]; then \
-	    echo "WARNING: Static Web App URL not found. Run 'make infra' first."; \
-	else \
-	    echo "Frontend URL: https://$(SWA_URL)"; \
-	fi
+	@echo "--- 🌐 Application URLs ---"
+	@cd $(TERRAFORM_DIR); \
+	SWA_URL=$$(terraform output -raw static_web_app_url 2>/dev/null); \
+	FUNC_NAME=$$(terraform output -raw function_app_name 2>/dev/null); \
+	if [ -n "$$SWA_URL" ]; then echo "🌍 Frontend: https://$$SWA_URL"; else echo "⚠️ Static Web App URL missing."; fi; \
+	if [ -n "$$FUNC_NAME" ]; then echo "🛠️ Backend: https://$$FUNC_NAME.azurewebsites.net"; else echo "⚠️ Function App missing."; fi
 
 clean:
-	@echo "--- Cleaning up local build artifacts and Terraform state ---"
-	@rm -rf $(TERRAFORM_DIR)/.terraform/
-	@rm -f $(TERRAFORM_DIR)/terraform.tfstate* $(TERRAFORM_DIR)/.terraform.lock.hcl $(TERRAFORM_DIR)/terraform.tfstate.backup
-	@rm -rf $(VENV_DIR)/
-	@echo "Local cleanup complete."
+	@echo "--- 🧹 Cleaning up ---"
+	@rm -rf $(TERRAFORM_DIR)/.terraform/ $(TERRAFORM_DIR)/terraform.tfstate* $(TERRAFORM_DIR)/.terraform.lock.hcl
+	@rm -rf $(VENV_DIR)
+	@echo "✅ Cleanup complete."
 
 destroy:
-	@cd $(TERRAFORM_DIR) && terraform destroy -auto-approve
+	@echo "--- 💣 Destroying infrastructure ---"
+	@cd $(TERRAFORM_DIR) && terraform destroy -auto-approve || { echo "❌ ERROR: Terraform destroy failed."; exit 1; }
+	@echo "✅ Infrastructure destroyed."
+
+help:
+	@echo "📖 Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all             : Deploy infra + frontend + backend + DB init"
+	@echo "  infra           : Terraform infra deployment"
+	@echo "  frontend        : Deploy frontend to Azure Static Web Apps"
+	@echo "  backend         : Deploy backend to Azure Function App"
+	@echo "  init-db-trigger : Call backend/init-db to initialize database"
+	@echo "  venv-setup      : Setup Python virtual environment"
+	@echo "  show_urls       : Print frontend/backend URLs"
+	@echo "  clean           : Remove local build artifacts"
+	@echo "  destroy         : Tear down Azure resources"
+	@echo "  help            : Show this help message"

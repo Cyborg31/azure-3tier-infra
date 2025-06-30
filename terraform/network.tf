@@ -28,8 +28,8 @@ resource "azurerm_subnet" "backend" {
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.backend_subnet_prefix]
 
-    delegation {
-    name = "functionAppDelegation"
+  delegation {
+    name = "Microsoft.Web.serverFarms"
     service_delegation {
       name    = "Microsoft.Web/serverFarms"
       actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
@@ -108,20 +108,20 @@ resource "azurerm_network_security_group" "backend" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "8080"
+    destination_port_range     = "8080" # Assuming your function app is HTTP triggered, this might be redundant for HTTP triggers but keep if backend API is on 8080.
     source_address_prefix      = var.frontend_subnet_prefix
     destination_address_prefix = "*"
   }
 
-  # Allow outbound to DB subnet on MySQL port
+  # Allow outbound to DB subnet on SQL Server port (1433)
   security_rule {
-    name                       = "AllowOutboundMySQLToDB"
+    name                       = "AllowOutboundSQLToDB" 
     priority                   = 100
     direction                  = "Outbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "3306"
+    destination_port_range     = "1433"
     destination_address_prefix = var.db_subnet_prefix
     source_address_prefix      = "*"
   }
@@ -147,15 +147,15 @@ resource "azurerm_network_security_group" "db" {
   resource_group_name = azurerm_resource_group.main.name
   tags                = var.tags
 
-  # Allow MySQL from backend subnet only
+  # Allow SQL Server from backend subnet only
   security_rule {
-    name                       = "AllowMySQL"
+    name                       = "AllowSQL" 
     priority                   = 100
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "3306"
+    destination_port_range     = "1433" 
     source_address_prefix      = var.backend_subnet_prefix
     destination_address_prefix = "*"
   }

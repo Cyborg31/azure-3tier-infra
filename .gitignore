@@ -11,3 +11,6 @@ terraform/*.tfplan
 
 # Python virtual environment
 .venv/
+
+#app file
+app/backend/.python_packages

@@ -57,6 +57,17 @@ resource "azurerm_key_vault" "main" {
   }
 }
 
+resource "azurerm_key_vault_access_policy" "function_app_policy" {
+  key_vault_id = azurerm_key_vault.main.id
+
+  tenant_id = azurerm_linux_function_app.backend.identity[0].tenant_id
+  object_id = azurerm_linux_function_app.backend.identity[0].principal_id
+
+  secret_permissions = ["Get"]
+
+  depends_on = [azurerm_linux_function_app.backend]
+}
+
 # strong password for database
 resource "random_password" "db_password" {
   length           = 20

@@ -4,13 +4,11 @@ import pyodbc
 import json
 import azure.functions as func
 
-# --- Helper function for DB connection (recommended for reuse) ---
 def get_db_connection():
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
     username = os.getenv("DB_USER")
     password = os.getenv("DB_PASSWORD")
-    # Get driver from env var, fallback to default if not set
     driver = os.getenv("DB_DRIVER", "{ODBC Driver 18 for SQL Server}")
 
     if not all([server, database, username, password]):
@@ -31,9 +29,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("GetData function triggered.")
 
     try:
-        with get_db_connection() as conn: # Use the helper function
+        with get_db_connection() as conn: 
             with conn.cursor() as cursor:
-                # Added ORDER BY for consistent results
                 cursor.execute("SELECT id, message, created_at FROM messages_table ORDER BY created_at DESC")
                 rows = cursor.fetchall()
 
@@ -42,7 +39,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                     data.append({
                         "id": row[0],
                         "message": row[1],
-                        "created_at": row[2].isoformat() # Convert datetime to ISO 8601 string
+                        "created_at": row[2].isoformat()
                     })
 
         return func.HttpResponse(

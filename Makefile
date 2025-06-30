@@ -2,11 +2,12 @@
 
 # Configuration Variables
 FRONTEND_DIR := app/frontend
+TEMP_DEPLOY_DIR := build/frontend
 BACKEND_DIR := app/backend
 TERRAFORM_DIR := terraform
 VENV_DIR := .venv
 
-all: infra frontend backend init-db-trigger show_urls
+all: infra backend frontend init-db-trigger show_urls
 	@echo ""
 	@echo "✅ All deployment targets finished. Check URLs above."
 
@@ -16,29 +17,61 @@ infra:
 	terraform init && \
 	terraform apply -auto-approve || { echo "❌ ERROR: Terraform infrastructure deployment failed!"; exit 1; }
 
-frontend: infra
-	@echo "--- 🚀 Deploying Frontend (Azure Static Web App) ---"
-	@SWA_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw static_webapp_name 2>/dev/null); \
+frontend:
+	@echo "--- 🚀 Deploying Frontend (Azure Static Web App) ---"; \
+	SWA_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw static_webapp_name 2>/dev/null); \
 	RG_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw resource_group_name 2>/dev/null); \
-	if [ -z "$$SWA_NAME" ]; then \
-		echo "❌ ERROR: Static Web App name not found."; exit 1; \
+	FUNC_APP_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw function_app_name 2>/dev/null); \
+	if [ -z "$$SWA_NAME" ] || [ -z "$$FUNC_APP_NAME" ]; then \
+		echo "❌ ERROR: Static Web App or Function App name not found."; exit 1; \
 	fi; \
+	echo "⏳ Retrieving Function App URL..."; \
+	FUNC_APP_URL=$$(az functionapp show --name "$$FUNC_APP_NAME" --resource-group "$$RG_NAME" --query "defaultHostName" -o tsv); \
+	if [ -z "$$FUNC_APP_URL" ]; then \
+		echo "❌ ERROR: Function App URL not found."; exit 1; \
+	fi; \
+	echo "✅ Function App URL: https://$$FUNC_APP_URL"; \
+	echo "⏳ Retrieving getdata Function Key..."; \
+	MAX_RETRIES=30; RETRY_COUNT=0; \
+	while :; do \
+		GETDATA_API_KEY=$$(az functionapp function keys list --function-name getdata --name "$$FUNC_APP_NAME" --resource-group "$$RG_NAME" --query "default" -o tsv 2>/dev/null); \
+		if [ -n "$$GETDATA_API_KEY" ]; then break; fi; \
+		if [ $$RETRY_COUNT -ge $$MAX_RETRIES ]; then \
+			echo "❌ ERROR: getdata Function Key not available after multiple retries."; exit 1; \
+		fi; \
+		echo "  ⏳ Key wait: $$RETRY_COUNT/$$MAX_RETRIES"; \
+		sleep 2; RETRY_COUNT=$$(($$RETRY_COUNT + 1)); \
+	done; \
+	echo "✅ getdata Function Key acquired."; \
+	echo "⏳ Preparing frontend for deployment with dynamic values..."; \
+	rm -rf $(TEMP_DEPLOY_DIR); \
+	mkdir -p $(TEMP_DEPLOY_DIR); \
+	cp $(FRONTEND_DIR)/index.html $(TEMP_DEPLOY_DIR)/index.html.tmp; \
+	sed "s|%%FUNCTION_APP_URL%%|$$FUNC_APP_URL|g" $(TEMP_DEPLOY_DIR)/index.html.tmp > $(TEMP_DEPLOY_DIR)/index.html.intermediate; \
+	sed "s|%%GETDATA_API_KEY%%|$$GETDATA_API_KEY|g" $(TEMP_DEPLOY_DIR)/index.html.intermediate > $(TEMP_DEPLOY_DIR)/index.html; \
+	rm $(TEMP_DEPLOY_DIR)/index.html.tmp $(TEMP_DEPLOY_DIR)/index.html.intermediate; \
+	echo "✅ index.html updated."; \
+	echo "🔍 Verifying content of $(TEMP_DEPLOY_DIR)/index.html:"; \
+	cat $(TEMP_DEPLOY_DIR)/index.html; \
+	echo "--- End of index.html content ---"; \
 	echo "⏳ Waiting for Static Web App deployment token..."; \
 	MAX_RETRIES=15; RETRY_COUNT=0; \
 	while :; do \
 		DEPLOYMENT_TOKEN=$$(az staticwebapp secrets list --name "$$SWA_NAME" --resource-group "$$RG_NAME" --query properties.apiKey -o tsv 2>/dev/null); \
 		if [ -n "$$DEPLOYMENT_TOKEN" ]; then break; fi; \
 		if [ $$RETRY_COUNT -ge $$MAX_RETRIES ]; then \
-			echo "❌ ERROR: Deployment token not available."; exit 1; \
+			echo "❌ ERROR: Deployment token not available after multiple retries."; exit 1; \
 		fi; \
 		echo "  ⏳ Token wait: $$RETRY_COUNT/$$MAX_RETRIES"; \
 		sleep 2; RETRY_COUNT=$$(($$RETRY_COUNT + 1)); \
 	done; \
-	echo "🔑 Token acquired. Deploying from $(FRONTEND_DIR)..."; \
+	echo "🔑 Token acquired."; \
+	echo "Deploying from $(TEMP_DEPLOY_DIR)..."; \
 	swa deploy --app-name "$$SWA_NAME" \
 	           --resource-group "$$RG_NAME" \
 	           --deployment-token $$DEPLOYMENT_TOKEN \
-	           --app-location "$(FRONTEND_DIR)" || { echo "❌ ERROR: Static Web App deployment failed!"; exit 1; }; \
+	           --app-location "$(TEMP_DEPLOY_DIR)" \
+	           --env production || { echo "❌ ERROR: Static Web App deployment failed!"; exit 1; }; \
 	echo "✅ Frontend deployment complete."
 
 backend: venv-setup
@@ -115,6 +148,7 @@ show_urls:
 clean:
 	@echo "--- 🧹 Cleaning up ---"
 	@rm -rf $(TERRAFORM_DIR)/.terraform/ $(TERRAFORM_DIR)/terraform.tfstate* $(TERRAFORM_DIR)/.terraform.lock.hcl
+	rm -rf $(TEMP_DEPLOY_DIR); \
 	@rm -rf $(VENV_DIR)
 	@echo "✅ Cleanup complete."
 

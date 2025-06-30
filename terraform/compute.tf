@@ -36,6 +36,10 @@ resource "azurerm_application_insights" "app_insights" {
   application_type    = "web"
 }
 
+locals {
+  swa_hostname = azurerm_static_web_app.frontend.default_host_name
+}
+
 # Function App (Linux)
 resource "azurerm_linux_function_app" "backend" {
   name                       = var.function_app_name
@@ -44,12 +48,32 @@ resource "azurerm_linux_function_app" "backend" {
   storage_account_name       = azurerm_storage_account.function_storage.name
   storage_account_access_key = azurerm_storage_account.function_storage.primary_access_key
   service_plan_id            = azurerm_service_plan.function_plan.id
+  https_only                 = true
 
   identity {
     type = "SystemAssigned"
   }
 
-  site_config {}
+   lifecycle {
+    ignore_changes = [
+      site_config[0].cors,
+    ]
+  }
+
+  site_config {
+    ftps_state               = "Disabled"    
+    minimum_tls_version      = "1.2"   
+
+    cors {
+      allowed_origins = [
+        "https://${local.swa_hostname}",
+        "https://*.azurestaticapps.net",
+        "http://localhost:4280",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+      ]
+    }
+  }
 
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"                = "python"
@@ -68,8 +92,9 @@ resource "azurerm_linux_function_app" "backend" {
   tags = var.tags
 
   depends_on = [
+    azurerm_static_web_app.frontend,
     azurerm_key_vault_secret.db_admin_password,
-    azurerm_key_vault_secret.admin_api_key
+    azurerm_key_vault_secret.admin_api_key,
   ]
 }
 

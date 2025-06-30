@@ -1,0 +1,109 @@
+name: Deploy 3-Tier App to Azure
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  AZURE_RESOURCE_GROUP: three-tier-rg
+  TERRAFORM_DIR: terraform
+  FRONTEND_DIR: app/frontend
+  TEMP_DEPLOY_DIR: build/frontend
+  BACKEND_DIR: app/backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧾 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ☁️ Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_JSON }}
+
+      - name: 🔧 Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: 🚀 Terraform Init & Apply
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          terraform init
+          terraform apply -auto-approve
+
+      - name: 🛠️ Deploy Backend (Azure Function App)
+        run: |
+          FUNC_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw function_app_name)
+          RG_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw resource_group_name)
+
+          echo "Waiting for Function App readiness..."
+          for i in {1..15}; do
+            az functionapp show --name "$FUNC_NAME" --resource-group "$RG_NAME" && break || sleep 2
+          done
+
+          az functionapp config set --name "$FUNC_NAME" --resource-group "$RG_NAME" --linux-fx-version "Python|3.12"
+
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r ${{ env.BACKEND_DIR }}/requirements.txt
+
+          pushd ${{ env.BACKEND_DIR }}
+          func azure functionapp publish "$FUNC_NAME" --python
+          popd
+
+      - name: 🎯 Prepare Frontend (Inject Keys & URL)
+        run: |
+          SWA_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw static_webapp_name)
+          RG_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw resource_group_name)
+          FUNC_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw function_app_name)
+
+          FUNC_URL=$(az functionapp show --name "$FUNC_NAME" --resource-group "$RG_NAME" --query "defaultHostName" -o tsv)
+          
+          for i in {1..30}; do
+            GETDATA_API_KEY=$(az functionapp function keys list --function-name getdata --name "$FUNC_NAME" --resource-group "$RG_NAME" --query "default" -o tsv) && break || sleep 2
+          done
+
+          mkdir -p ${{ env.TEMP_DEPLOY_DIR }}
+          sed "s|%%FUNCTION_APP_URL%%|https://$FUNC_URL|g" ${{ env.FRONTEND_DIR }}/index.html > tmp1.html
+          sed "s|%%GETDATA_API_KEY%%|$GETDATA_API_KEY|g" tmp1.html > ${{ env.TEMP_DEPLOY_DIR }}/index.html
+          rm tmp1.html
+
+      - name: 🌐 Deploy Frontend (Static Web App)
+        run: |
+          SWA_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw static_webapp_name)
+          RG_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw resource_group_name)
+
+          for i in {1..15}; do
+            DEPLOY_TOKEN=$(az staticwebapp secrets list --name "$SWA_NAME" --resource-group "$RG_NAME" --query properties.apiKey -o tsv) && break || sleep 2
+          done
+
+          npm install -g @azure/static-web-apps-cli
+          swa deploy --app-name "$SWA_NAME" \
+                     --resource-group "$RG_NAME" \
+                     --deployment-token "$DEPLOY_TOKEN" \
+                     --app-location "${{ env.TEMP_DEPLOY_DIR }}" \
+                     --env production
+
+      - name: 🧪 Trigger Init DB
+        run: |
+          FUNC_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw function_app_name)
+          RG_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw resource_group_name)
+          KEY_VAULT=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw key_vault_name)
+
+          for i in {1..15}; do
+            ADMIN_KEY=$(az keyvault secret show --name admin-api-key --vault-name "$KEY_VAULT" --query value -o tsv) && break || sleep 2
+          done
+
+          URLENCODED_KEY=$(python3 -c "import urllib.parse; print(urllib.parse.quote_plus('$ADMIN_KEY'))")
+
+          for i in {1..15}; do
+            FUNC_KEY=$(az functionapp function keys list --resource-group "$RG_NAME" --name "$FUNC_NAME" --function-name init-db --query 'default' -o tsv) && break || sleep 2
+          done
+
+          curl -i "https://$FUNC_NAME.azurewebsites.net/api/init-db?code=$FUNC_KEY&key=$URLENCODED_KEY"
+

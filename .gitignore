@@ -14,3 +14,4 @@ terraform/*.tfplan
 
 #app file
 app/backend/.python_packages
+build/frontend/index.html

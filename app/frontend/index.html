@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure 3-Tier Application</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #0056b3;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+            border-top: 1px solid #eee;
+            margin-top: 20px;
+        }
+        li {
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        li:last-child {
+            border-bottom: none;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #e2f0d9; /* Light green */
+            color: #28a745; /* Green */
+        }
+        .status.error {
+            background-color: #f8d7da; /* Light red */
+            color: #dc3545; /* Red */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Hello Azure 3-Tier App!</h1>
+        <p>This frontend fetches data from an Azure Function App which then queries an Azure SQL Database.</p>
+        <button id="fetchDataButton">Fetch Data</button>
+        <p id="status" class="status">Click "Fetch Data" to load messages.</p>
+        <h2>Messages from SQL DB:</h2>
+        <ul id="dataList">
+            </ul>
+    </div>
+
+    <script>
+        document.getElementById('fetchDataButton').addEventListener('click', fetchData);
+
+        async function fetchData() {
+            const dataList = document.getElementById('dataList');
+            const statusElement = document.getElementById('status');
+            dataList.innerHTML = '<li>Loading...</li>';
+            statusElement.textContent = '';
+            statusElement.classList.remove('error');
+
+            // These will be replaced by the Makefile during deployment
+            const backendBaseUrl = '%%FUNCTION_APP_URL%%'; 
+            const functionApiKey = '%%GETDATA_API_KEY%%';
+
+            const url = `https://${backendBaseUrl}/api/getdata`;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'x-functions-key': functionApiKey,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
+                }
+                const data = await response.json();
+
+                dataList.innerHTML = '';
+                if (data.length > 0) {
+                    data.forEach(item => {
+                        const li = document.createElement('li');
+                        li.textContent = `ID: ${item.id}, Message: "${item.message}" (Created: ${new Date(item.created_at).toLocaleString()})`;
+                        dataList.appendChild(li);
+                    });
+                    statusElement.textContent = 'Data fetched successfully!';
+                } else {
+                    dataList.innerHTML = '<li>No data found in the database.</li>';
+                    statusElement.textContent = 'Database table is empty.';
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                dataList.innerHTML = `<li>Error fetching data. Check console for details.</li>`;
+                statusElement.textContent = `Error: ${error.message}`;
+                statusElement.classList.add('error');
+            }
+        }
+    </script>
+</body>
+</html>

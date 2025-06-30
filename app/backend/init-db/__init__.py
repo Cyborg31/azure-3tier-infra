@@ -8,34 +8,23 @@ logger = logging.getLogger(__name__)
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logger.info("Init-DB function received a request.")
 
-    # --- API Key Authentication ---
     api_key = req.params.get("key")
     expected_key = os.getenv("ADMIN_API_KEY")
 
-    # Log the received and expected keys for debugging (use repr() to show whitespace)
-    # BE CAREFUL NOT TO LOG SENSITIVE INFO IN PRODUCTION. This is for DEBUGGING ONLY.
     logger.info(f"DEBUG: Received API key (repr): {repr(api_key)}")
     logger.info(f"DEBUG: Expected ADMIN_API_KEY (first 5 chars): {repr(expected_key[:5]) if expected_key else 'None'}, Full length: {len(expected_key) if expected_key else 0}")
-    # If you are comfortable, for this specific debugging session, you can temporarily log the full expected_key:
-    # logger.info(f"DEBUG: Expected ADMIN_API_KEY (repr): {repr(expected_key)}")
 
 
     if not api_key:
         logger.warning("Unauthorized: API key not provided in request.")
         return func.HttpResponse("Unauthorized: API key not provided.", status_code=401)
 
-    # Convert both to string and strip whitespace for comparison IF you suspect whitespace
-    # For now, let's compare as-is to see the exact discrepancy
     if api_key != expected_key:
         logger.warning(f"Unauthorized: Mismatching API key. Provided: {repr(api_key)}, Expected: {repr(expected_key)}")
-        # ^ IMPORTANT: We're logging both full keys here for immediate debugging.
-        # This should be removed immediately after debugging is complete.
         return func.HttpResponse("Unauthorized: Invalid API key.", status_code=401)
     
     logger.info("API key authenticated successfully.")
 
-    # ... (rest of your database connection code) ...
-    # No changes below this point unless you already have them from previous updates
 
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")

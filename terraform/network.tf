@@ -108,7 +108,7 @@ resource "azurerm_network_security_group" "backend" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "8080" # Assuming your function app is HTTP triggered, this might be redundant for HTTP triggers but keep if backend API is on 8080.
+    destination_port_range     = "8080" 
     source_address_prefix      = var.frontend_subnet_prefix
     destination_address_prefix = "*"
   }

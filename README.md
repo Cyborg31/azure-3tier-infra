@@ -22,38 +22,6 @@ The application is logically separated into three distinct tiers, designed for m
 * **Infrastructure as Code (IaC):** The entire Azure infrastructure (resource groups, static web app, function app, SQL database, networking, Key Vault, etc.) is defined and provisioned using **HashiCorp Terraform**, ensuring consistency, repeatability, and version control for your cloud resources.
 * **Automated CI/CD with GitHub Actions:** All infrastructure provisioning and application code deployments are orchestrated automatically via GitHub Actions workflows, ensuring a seamless and reliable deployment pipeline on every code push.
 
-### Architectural Diagram
-
-Here's a visual representation of the application's architecture:
-
-```mermaid
-graph TD
-    subgraph User Interaction
-        A[User / Browser] -- HTTPS Request --> B(Azure Static Web App\nFrontend)
-    end
-
-    subgraph Presentation Tier
-        B -- API Call (HTTPS / CORS) --> C[Azure Function App\nBackend API]
-    end
-
-    subgraph Application Tier
-        C -- VNet Integration --> D{Azure Virtual Network\nPrivate Subnet}
-        D -- Private Link Connection --> E[Azure SQL Database\nData Layer]
-        C -- Reads Secret --> F(Azure Key Vault\nSecure Credentials)
-    end
-
-    style A fill:#f0f9ff,stroke:#0078D4,stroke-width:2px;
-    style B fill:#e0f7fa,stroke:#0078D4,stroke-width:2px;
-    style C fill:#e0f7fa,stroke:#0078D4,stroke-width:2px;
-    style D fill:#f9fbe7,stroke:#0078D4,stroke-width:2px;
-    style E fill:#f3e5f5,stroke:#0078D4,stroke-width:2px;
-    style F fill:#fff3e0,stroke:#0078D4,stroke-width:2px;
-
-    linkStyle 0 stroke:#333,stroke-width:2px;
-    linkStyle 1 stroke:#333,stroke-width:2px;
-    linkStyle 2 stroke:#333,stroke-width:2px;
-    linkStyle 3 stroke:#333,stroke-width:2px;
-    linkStyle 4 stroke:#333,stroke-width:2px;
 
 ## Features
 

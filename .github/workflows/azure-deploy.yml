@@ -19,6 +19,18 @@ jobs:
       - name: 🧾 Checkout Code
         uses: actions/checkout@v4
 
+      - name: 📥 Install jq (for JSON parsing)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: 🌐 Set Azure environment variables from credentials JSON
+        run: |
+          echo "${{ secrets.AZURE_CREDENTIALS_JSON }}" > creds.json
+          echo "ARM_CLIENT_ID=$(jq -r .clientId creds.json)" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$(jq -r .clientSecret creds.json)" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$(jq -r .tenantId creds.json)" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+        shell: bash
+
       - name: ☁️ Azure Login
         uses: azure/login@v1
         with:
@@ -106,4 +118,3 @@ jobs:
           done
 
           curl -i "https://$FUNC_NAME.azurewebsites.net/api/init-db?code=$FUNC_KEY&key=$URLENCODED_KEY"
-

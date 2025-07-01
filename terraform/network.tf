@@ -108,14 +108,14 @@ resource "azurerm_network_security_group" "backend" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "8080" 
+    destination_port_range     = "8080"
     source_address_prefix      = var.frontend_subnet_prefix
     destination_address_prefix = "*"
   }
 
   # Allow outbound to DB subnet on SQL Server port (1433)
   security_rule {
-    name                       = "AllowOutboundSQLToDB" 
+    name                       = "AllowOutboundSQLToDB"
     priority                   = 100
     direction                  = "Outbound"
     access                     = "Allow"
@@ -149,13 +149,13 @@ resource "azurerm_network_security_group" "db" {
 
   # Allow SQL Server from backend subnet only
   security_rule {
-    name                       = "AllowSQL" 
+    name                       = "AllowSQL"
     priority                   = 100
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "1433" 
+    destination_port_range     = "1433"
     source_address_prefix      = var.backend_subnet_prefix
     destination_address_prefix = "*"
   }

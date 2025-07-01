@@ -72,7 +72,25 @@ frontend:
 	           --deployment-token $$DEPLOYMENT_TOKEN \
 	           --app-location "$(TEMP_DEPLOY_DIR)" \
 	           --env production || { echo "❌ ERROR: Static Web App deployment failed!"; exit 1; }; \
-	echo "✅ Frontend deployment complete."
+	echo "✅ Frontend deployment complete."; \
+	echo "--- 🌐 Setting CORS Origin for Backend Function App using az rest ---"; \
+	SUB_ID=$$(az account show --query id -o tsv); \
+	SWA_URL=$$(cd terraform && terraform output -raw static_web_app_url); \
+	echo "DEBUG: SWA_URL='$$SWA_URL'"; \
+	if [ -z "$$SWA_URL" ]; then \
+		echo "❌ ERROR: SWA_URL is empty, cannot extract host."; exit 1; \
+	fi; \
+	SWA_HOST=$$SWA_URL \
+	RG_NAME=$$(cd terraform && terraform output -raw resource_group_name); \
+	FUNC_APP_NAME=$$(cd terraform && terraform output -raw function_app_name); \
+	if [ -z "$$SUB_ID" ] || [ -z "$$RG_NAME" ] || [ -z "$$FUNC_APP_NAME" ] || [ -z "$$SWA_HOST" ]; then \
+  		echo "❌ ERROR: Missing variables for az rest CORS call."; exit 1; \
+	fi; \
+	az rest --method patch \
+  		--url "https://management.azure.com/subscriptions/$$SUB_ID/resourceGroups/$$RG_NAME/providers/Microsoft.Web/sites/$$FUNC_APP_NAME/config/web?api-version=2023-12-01" \
+  		--body "{\"properties\":{\"cors\":{\"allowedOrigins\":[\"https://$$SWA_HOST\"]}}}" || { echo "❌ ERROR: Failed to set CORS using az rest."; exit 1; }; \
+	echo "✅ CORS configured: https://$$SWA_HOST"
+
 
 backend: venv-setup
 	@echo "--- 🚀 Deploying Backend (Azure Function App) ---"

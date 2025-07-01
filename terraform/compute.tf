@@ -10,7 +10,7 @@ resource "azurerm_static_web_app" "frontend" {
 # Storage Account for Function App
 resource "azurerm_storage_account" "function_storage" {
   name                     = lower("backendfuncstorage31") # lowercase & globally unique
-  resource_group_name       = azurerm_resource_group.main.name
+  resource_group_name      = azurerm_resource_group.main.name
   location                 = azurerm_resource_group.main.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
@@ -36,10 +36,6 @@ resource "azurerm_application_insights" "app_insights" {
   application_type    = "web"
 }
 
-locals {
-  swa_hostname = azurerm_static_web_app.frontend.default_host_name
-}
-
 # Function App (Linux)
 resource "azurerm_linux_function_app" "backend" {
   name                       = var.function_app_name
@@ -54,39 +50,23 @@ resource "azurerm_linux_function_app" "backend" {
     type = "SystemAssigned"
   }
 
-   lifecycle {
-    ignore_changes = [
-      site_config[0].cors,
-    ]
-  }
-
   site_config {
-    ftps_state               = "Disabled"    
-    minimum_tls_version      = "1.2"   
-
-    cors {
-      allowed_origins = [
-        "https://${local.swa_hostname}",
-        "https://*.azurestaticapps.net",
-        "http://localhost:4280",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-      ]
-    }
+    ftps_state          = "Disabled"
+    minimum_tls_version = "1.2"
   }
 
   app_settings = {
-    "FUNCTIONS_WORKER_RUNTIME"                = "python"
-    "WEBSITE_RUN_FROM_PACKAGE"                = "1"
-    "WEBSITE_VNET_ROUTE_ALL"                  = "1"
-    "DB_SERVER"                               = azurerm_mssql_server.sql_server.fully_qualified_domain_name
-    "DB_NAME"                                 = azurerm_mssql_database.sql_database.name
-    "DB_USER"                                 = "dbuser"
-    "DB_PASSWORD"                             = azurerm_key_vault_secret.db_admin_password.value
-    "ADMIN_API_KEY"                           = azurerm_key_vault_secret.admin_api_key.value
-    "WEBSITE_MINIMUM_ELASTIC_INSTANCE_COUNT"  = "1"
-    "APPINSIGHTS_INSTRUMENTATIONKEY"        = azurerm_application_insights.app_insights.instrumentation_key
-    "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.app_insights.connection_string
+    "FUNCTIONS_WORKER_RUNTIME"               = "python"
+    "WEBSITE_RUN_FROM_PACKAGE"               = "1"
+    "WEBSITE_VNET_ROUTE_ALL"                 = "1"
+    "DB_SERVER"                              = azurerm_mssql_server.sql_server.fully_qualified_domain_name
+    "DB_NAME"                                = azurerm_mssql_database.sql_database.name
+    "DB_USER"                                = "dbuser"
+    "DB_PASSWORD"                            = azurerm_key_vault_secret.db_admin_password.value
+    "ADMIN_API_KEY"                          = azurerm_key_vault_secret.admin_api_key.value
+    "WEBSITE_MINIMUM_ELASTIC_INSTANCE_COUNT" = "1"
+    "APPINSIGHTS_INSTRUMENTATIONKEY"         = azurerm_application_insights.app_insights.instrumentation_key
+    "APPLICATIONINSIGHTS_CONNECTION_STRING"  = azurerm_application_insights.app_insights.connection_string
   }
 
   tags = var.tags
@@ -115,7 +95,7 @@ resource "azurerm_mssql_server" "sql_server" {
 
   public_network_access_enabled = false
   minimum_tls_version           = "1.2"
-  tags                         = var.tags
+  tags                          = var.tags
 }
 
 # Azure SQL Database

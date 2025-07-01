@@ -29,6 +29,6 @@ output "sql_server_fqdn" {
 }
 
 output "key_vault_name" {
-  value = azurerm_key_vault.main.name
+  value       = azurerm_key_vault.main.name
   description = "The name of the Key Vault."
 }

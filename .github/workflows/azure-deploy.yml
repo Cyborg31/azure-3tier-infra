@@ -44,11 +44,18 @@ jobs:
       - name: Terraform Init & Apply
         working-directory: ${{ env.TERRAFORM_DIR }}
         run: |
+          set -e
           terraform init
           terraform apply -auto-approve
 
+      - name: Install Azure Functions Core Tools
+        run: |
+          set -e
+          npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
       - name: Deploy Backend (Azure Function App)
         run: |
+          set -e
           FUNC_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw function_app_name)
           RG_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw resource_group_name)
 
@@ -70,6 +77,7 @@ jobs:
 
       - name: Prepare Frontend (Inject Keys & URL)
         run: |
+          set -e
           SWA_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw static_webapp_name)
           RG_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw resource_group_name)
           FUNC_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw function_app_name)
@@ -87,6 +95,7 @@ jobs:
 
       - name: Deploy Frontend (Static Web App)
         run: |
+          set -e
           SWA_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw static_webapp_name)
           RG_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw resource_group_name)
 
@@ -101,8 +110,37 @@ jobs:
                      --app-location "${{ env.TEMP_DEPLOY_DIR }}" \
                      --env production
 
+      - name: Configure CORS for Backend Function App
+        run: |
+          set -e
+          SUB_ID=$(az account show --query id -o tsv)
+          RG_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw resource_group_name)
+          FUNC_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw function_app_name)
+          SWA_URL=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw static_web_app_url)
+
+          if [ -z "$SWA_URL" ]; then
+            echo "ERROR: static_web_app_url is empty"
+            exit 1
+          fi
+
+          SWA_HOST=${SWA_URL#https://}
+          SWA_HOST=${SWA_HOST%/}
+
+          if [ -z "$SUB_ID" ] || [ -z "$RG_NAME" ] || [ -z "$FUNC_NAME" ] || [ -z "$SWA_HOST" ]; then
+            echo "ERROR: Missing variables for CORS configuration"
+            exit 1
+          fi
+
+          echo "Setting CORS origin to https://$SWA_HOST"
+          az rest --method patch \
+            --url "https://management.azure.com/subscriptions/$SUB_ID/resourceGroups/$RG_NAME/providers/Microsoft.Web/sites/$FUNC_NAME/config/web?api-version=2023-12-01" \
+            --body "{\"properties\":{\"cors\":{\"allowedOrigins\":[\"https://$SWA_HOST\"]}}}"
+
+          echo "CORS configured: https://$SWA_HOST"
+
       - name: Trigger Init DB
         run: |
+          set -e
           FUNC_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw function_app_name)
           RG_NAME=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw resource_group_name)
           KEY_VAULT=$(terraform -chdir=${{ env.TERRAFORM_DIR }} output -raw key_vault_name)

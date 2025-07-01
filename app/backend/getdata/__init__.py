@@ -38,7 +38,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "Access-Control-Allow-Origin": origin,
                 "Access-Control-Allow-Methods": "GET, OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type, x-functions-key",
-                "Access-Control-Max-Age": "86400"
+                "Access-Control-Max-Age": "86400" 
             }
         )
 
@@ -56,7 +56,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         return func.HttpResponse(
             body=json.dumps(data),
-            content_type="application/json",
+            mimetype="application/json",
             status_code=200,
             headers={"Access-Control-Allow-Origin": origin}
         )

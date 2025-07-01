@@ -91,7 +91,7 @@ jobs:
           done
 
           mkdir -p ${{ env.TEMP_DEPLOY_DIR }}
-          sed "s|%%FUNCTION_APP_URL%%|https://$FUNC_URL|g" ${{ env.FRONTEND_DIR }}/index.html > tmp1.html
+          sed "s|%%FUNCTION_APP_URL%%|$FUNC_URL|g" ${{ env.FRONTEND_DIR }}/index.html > tmp1.html
           sed "s|%%GETDATA_API_KEY%%|$GETDATA_API_KEY|g" tmp1.html > ${{ env.TEMP_DEPLOY_DIR }}/index.html
           rm tmp1.html
 

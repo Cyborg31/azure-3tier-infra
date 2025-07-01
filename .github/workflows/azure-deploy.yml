@@ -131,16 +131,7 @@ jobs:
           echo "Setting CORS origin to https://$SWA_HOST"
           az rest --method patch \
             --url "https://management.azure.com/subscriptions/$SUB_ID/resourceGroups/$RG_NAME/providers/Microsoft.Web/sites/$FUNC_NAME/config/web?api-version=2023-12-01" \
-            --body "{
-              \"properties\": {
-                \"cors\": {
-                  \"allowedOrigins\": [\"https://$SWA_HOST\"],
-                  \"supportCredentials\": false,
-                  \"allowedHeaders\": [\"*\"],
-                  \"allowedMethods\": [\"GET\", \"POST\", \"OPTIONS\"]
-                }
-              }
-            }"
+            --body "{\"properties\":{\"cors\":{\"allowedOrigins\":[\"https://$SWA_HOST\"]}}}"
 
           echo "CORS configured: https://$SWA_HOST"
 

@@ -4,7 +4,6 @@ import pyodbc
 import json
 import azure.functions as func
 
-
 def get_db_connection():
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
@@ -26,9 +25,8 @@ def get_db_connection():
     )
     return pyodbc.connect(conn_str)
 
-
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("getdata function triggered.")
+    logging.info(f"getdata function triggered. Method: {req.method}, Origin: {req.headers.get('Origin', '*')}")
 
     origin = req.headers.get("Origin", "*")
 
@@ -50,21 +48,17 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 cursor.execute("SELECT id, message, created_at FROM messages_table ORDER BY created_at DESC")
                 rows = cursor.fetchall()
 
-                data = []
-                for row in rows:
-                    data.append({
-                        "id": row[0],
-                        "message": row[1],
-                        "created_at": row[2].isoformat()
-                    })
+                data = [{
+                    "id": row[0],
+                    "message": row[1],
+                    "created_at": row[2].isoformat()
+                } for row in rows]
 
         return func.HttpResponse(
             body=json.dumps(data),
-            mimetype="application/json",
+            content_type="application/json",
             status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": origin
-            }
+            headers={"Access-Control-Allow-Origin": origin}
         )
 
     except ValueError as ve:
@@ -72,9 +66,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             "Internal Server Error: Database configuration incomplete.",
             status_code=500,
-            headers={
-                "Access-Control-Allow-Origin": origin
-            }
+            headers={"Access-Control-Allow-Origin": origin}
         )
 
     except pyodbc.Error as db_err:
@@ -82,9 +74,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             f"Internal Server Error: Database operation failed. Details: {db_err}",
             status_code=500,
-            headers={
-                "Access-Control-Allow-Origin": origin
-            }
+            headers={"Access-Control-Allow-Origin": origin}
         )
 
     except Exception as e:
@@ -92,7 +82,5 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             f"Internal Server Error: Unexpected error occurred. Details: {e}",
             status_code=500,
-            headers={
-                "Access-Control-Allow-Origin": origin
-            }
+            headers={"Access-Control-Allow-Origin": origin}
         )

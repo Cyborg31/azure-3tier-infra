@@ -4,6 +4,7 @@ import pyodbc
 import json
 import azure.functions as func
 
+
 def get_db_connection():
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
@@ -25,11 +26,26 @@ def get_db_connection():
     )
     return pyodbc.connect(conn_str)
 
+
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("GetData function triggered.")
+    logging.info("getdata function triggered.")
+
+    origin = req.headers.get("Origin", "*")
+
+    if req.method == "OPTIONS":
+        logging.info("CORS preflight request received.")
+        return func.HttpResponse(
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, x-functions-key",
+                "Access-Control-Max-Age": "86400"
+            }
+        )
 
     try:
-        with get_db_connection() as conn: 
+        with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT id, message, created_at FROM messages_table ORDER BY created_at DESC")
                 rows = cursor.fetchall()
@@ -45,15 +61,38 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             body=json.dumps(data),
             mimetype="application/json",
-            status_code=200
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": origin
+            }
         )
 
-    except ValueError as ve: # Catch specific config errors
+    except ValueError as ve:
         logging.exception(f"Configuration error in GetData: {ve}")
-        return func.HttpResponse("Internal Server Error: Database configuration incomplete.", status_code=500)
-    except pyodbc.Error as db_err: # Catch specific DB errors
+        return func.HttpResponse(
+            "Internal Server Error: Database configuration incomplete.",
+            status_code=500,
+            headers={
+                "Access-Control-Allow-Origin": origin
+            }
+        )
+
+    except pyodbc.Error as db_err:
         logging.exception(f"Database error in GetData: {db_err}")
-        return func.HttpResponse(f"Internal Server Error: Database operation failed. Details: {db_err}", status_code=500)
-    except Exception as e: # Catch any other unexpected errors
-        logging.exception(f"An unexpected error occurred in GetData: {e}")
-        return func.HttpResponse(f"Internal Server Error: An unexpected error occurred. Details: {e}", status_code=500)
+        return func.HttpResponse(
+            f"Internal Server Error: Database operation failed. Details: {db_err}",
+            status_code=500,
+            headers={
+                "Access-Control-Allow-Origin": origin
+            }
+        )
+
+    except Exception as e:
+        logging.exception(f"Unexpected error in GetData: {e}")
+        return func.HttpResponse(
+            f"Internal Server Error: Unexpected error occurred. Details: {e}",
+            status_code=500,
+            headers={
+                "Access-Control-Allow-Origin": origin
+            }
+        )

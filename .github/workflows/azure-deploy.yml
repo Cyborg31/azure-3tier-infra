@@ -19,8 +19,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install jq (for JSON parsing)
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       - name: Set Azure environment variables from credentials JSON
         run: |
@@ -126,15 +128,19 @@ jobs:
           SWA_HOST=${SWA_URL#https://}
           SWA_HOST=${SWA_HOST%/}
 
-          if [ -z "$SUB_ID" ] || [ -z "$RG_NAME" ] || [ -z "$FUNC_NAME" ] || [ -z "$SWA_HOST" ]; then
-            echo "ERROR: Missing variables for CORS configuration"
-            exit 1
-          fi
-
           echo "Setting CORS origin to https://$SWA_HOST"
           az rest --method patch \
             --url "https://management.azure.com/subscriptions/$SUB_ID/resourceGroups/$RG_NAME/providers/Microsoft.Web/sites/$FUNC_NAME/config/web?api-version=2023-12-01" \
-            --body "{\"properties\":{\"cors\":{\"allowedOrigins\":[\"https://$SWA_HOST\"]}}}"
+            --body "{
+              \"properties\": {
+                \"cors\": {
+                  \"allowedOrigins\": [\"https://$SWA_HOST\"],
+                  \"supportCredentials\": false,
+                  \"allowedHeaders\": [\"*\"],
+                  \"allowedMethods\": [\"GET\", \"POST\", \"OPTIONS\"]
+                }
+              }
+            }"
 
           echo "CORS configured: https://$SWA_HOST"
 
